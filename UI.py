@@ -73,13 +73,13 @@ class Application(tk.Frame):
     def search_keywords(self):
         api_key = self.apikey.get()
         question = self.question.get()
-        keywords = functions.promptText_keywords(question, api_key)
+        keywords = functions.promptText_keywords(question, api_key).strip('\n')
         #show keywords in the output box
         print(type(keywords))
         self.keybox.config(state=tk.NORMAL)
         self.keybox.delete('1.0', tk.END) # clear the output box
         #insert keywords in the output box
-        self.keybox.insert(tk.END, keywords.strip('\n')) 
+        self.keybox.insert(tk.END, keywords) 
 
     def run(self):
         api_key = self.apikey.get()
@@ -91,9 +91,12 @@ class Application(tk.Frame):
         print(texfilename)
         # list_of_sections = functions.extract_section_and_subsections(functions.get_sections(texfilename),texfilename)
 
-        keywords = self.keybox.get("1.0", tk.END).strip().split(',') # get the keywords from the output box
-
-
+        keywords = self.keybox.get("1.0", tk.END).strip() # get the keywords from the output box
+        print(keywords)
+        if keywords == '':
+            keywords = functions.promptText_keywords(question, api_key).strip('\n')
+            self.keybox.insert(tk.END, keywords)
+            print(keywords)
         # get phrases from the text
         phrases = []
         """ for keyword in keywords:
@@ -103,7 +106,7 @@ class Application(tk.Frame):
                 print(phrase)
                 if phrase is not None:
                     phrases.append(phrase) """
-        for keyword in keywords:
+        for keyword in keywords.strip().split(','):
             print('Keyword', keyword)
             phrase = functions.extract_phrases(keyword, functions.extract_all_text(texfilename))
             print(phrase)

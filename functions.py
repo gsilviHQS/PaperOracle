@@ -76,7 +76,7 @@ def extract_phrases(keyword,text):
     """ Extract the phrases that match the keyword from the text """
     #position = text.find(keyword.lower())
     positions = [m.start() for m in re.finditer(keyword, text)]
-    print("Position:",positions)
+    #print("Position:",positions)
     start = 0
     end = 0
     phrases = []
