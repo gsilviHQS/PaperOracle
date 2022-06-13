@@ -11,5 +11,7 @@ You also may need to install the openai library: pip install openai
 # Run
 To run simply run the command: python UI.py
 
-
-![plot](./example1.png)
+Solarized dark             |  Solarized Ocean
+:-------------------------:|:-------------------------:
+![](https://...example1.png)  |  ![](https://...example2.png)
+<!-- ![plot](./example1.png) -->
