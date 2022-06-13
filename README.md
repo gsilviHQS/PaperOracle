@@ -11,7 +11,4 @@ You also may need to install the openai library: pip install openai
 # Run
 To run simply run the command: python UI.py
 
-
-:-------------------------:|:-------------------------:
-![](./example1.png)  |  ![](./example2.png)
-<!-- ![plot](./example1.png) -->
+![plot](./example1.png)![plot](./example2.png)
