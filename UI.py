@@ -62,6 +62,14 @@ class Application(tk.Frame):
         tk.Button(self.master, text="Search keywords", command=self.search_keywords).grid(row=3,
                                                                                           column=2,
                                                                                           sticky=tk.W)
+        #add boolean variable 
+        self.boolean = tk.IntVar()
+        self.boolean.set(0)
+        #add checkbox below search keywords button to ask for synonims
+        self.checkbox = tk.Checkbutton(self.master, text="and synonyms", variable=self.boolean).grid(row=4, 
+                                                                                                     column=2, 
+                                                                                                     sticky=tk.W)
+        
 
         tk.Button(self.master, text='Run', command=self.run).grid(row=6,
                                                                   column=1,
@@ -73,11 +81,16 @@ class Application(tk.Frame):
     def search_keywords(self):
         api_key = self.apikey.get()
         question = self.question.get()
-        keywords = functions.promptText_keywords(question, api_key).strip('\n')  # search keywords from question using gpt
+        # print value of boolean variable
+        if self.boolean.get() == 1:
+            keywords = functions.promptText_keywords(question, api_key, True).strip('\n')
+        else:
+            keywords = functions.promptText_keywords(question, api_key).strip('\n')
         # show keywords in the output box
         self.keybox.config(state=tk.NORMAL)
         self.keybox.delete('1.0', tk.END)  # clear the output box
         self.keybox.insert(tk.END, keywords)  # insert keywords in the keybox
+        return keywords
 
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
@@ -90,24 +103,26 @@ class Application(tk.Frame):
 
         keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box in lower case        
         if keywords == '':  # if the keywords are not provided, promt GPT to generate them from the question
-            keywords = functions.promptText_keywords(question, api_key).strip('\n')
-            self.keybox.insert(tk.END, keywords)  # insert keywords in the keybox
+            keywords = self.search_keywords()
 
         print('Keywords to use:', keywords)
         # get list_of_phrases from the text
         list_of_phrases = []
         complete_text = functions.extract_all_text(tex_files)
         for keyword in keywords.split(','):  # loop through the keywords
-            phrase = functions.extract_phrases(keyword.strip(), complete_text, api_key) 
-            phrase_lower = functions.extract_phrases(keyword.strip().lower(), complete_text, api_key)  # try lower case
+            phrase, stop = functions.extract_phrases(keyword.strip(), complete_text, api_key)
+            if stop:
+                break
             if phrase is not None:
                 list_of_phrases.append(".\n".join(phrase))
                 print('For keyword \'' + keyword + '\' the phrase found are:', phrase)
-            elif phrase_lower is not None:
-                list_of_phrases.append(".\n".join(phrase_lower))
-                print('For keyword \'' + keyword.strip().lower() + '\' the phrase found are:', phrase_lower)
             else:
-                print('For keyword \'' + keyword + '\' no phrase found')
+                phrase_lower = functions.extract_phrases(keyword.strip().lower(), complete_text, api_key)  # try lower case
+                if phrase_lower is not None:
+                    list_of_phrases.append(".\n".join(phrase_lower))
+                    print('For keyword \'' + keyword.strip().lower() + '\' the phrase found are:', phrase_lower)
+                else:
+                    print('For keyword \'' + keyword + '\' no phrase found')
         list_of_phrases = ".\n".join(list_of_phrases)
 
         # print('Phrases (',len(list_of_phrases),')',list_of_phrases)
@@ -115,8 +130,12 @@ class Application(tk.Frame):
         self.textbox.delete(1.0, tk.END)
         if len(list_of_phrases) > 0:
             header = functions.getTitleOfthePaper(url)
-            result = functions.promptText_question(question, list_of_phrases, header, api_key)
-            self.textbox.insert(tk.END, result['choices'][0]['text'])  # insert the answer in the output box
+            try:
+                result = functions.promptText_question(question, list_of_phrases, header, api_key)
+                self.textbox.insert(tk.END, result['choices'][0]['text'])  # insert the answer in the output box
+            except Exception as e:
+                self.textbox.insert(tk.END, 'Error: ' + str(e))
+            
         else:
             self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords')
         self.textbox.config(state=tk.DISABLED)

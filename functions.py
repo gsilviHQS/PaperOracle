@@ -8,6 +8,8 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
+MAX_LENGHT_PHRASE = 2000
+MAX_NUMBER_OF_PHRASES = 10
 
 def getTitleOfthePaper(paper_url):
     """ 
@@ -78,7 +80,7 @@ def find_prev(s, pos, c):
 
 def extract_phrases(keyword, text, api_key):
     """ Extract the phrases that match the keyword from the text """
-
+    searchstart = True
     if len([m.start() for m in re.finditer(r"\\" + keyword, text)]) > 0:  # if the keyword of type \keyword
         positions = [m.start() for m in re.finditer(r"\\" + keyword, text)]
         print('keyword of latex-type \\' + keyword)
@@ -89,10 +91,10 @@ def extract_phrases(keyword, text, api_key):
         positions = [m.start()
                      for m in re.finditer(r"\\begin{" + keyword, text)]
         print('keyword of latex-type \\begin{' + keyword + '}')
-        delimiter_start = '\n'
-        delimiter_end = '\end{' + keyword + '}'
+        searchstart = False
+        delimiter_end = 'end{' + keyword + '}'
     else:
-        print('normal type keyword')
+        print('normal type keyword:' + keyword)
         positions = [m.start() for m in re.finditer(r'\b' + keyword, text)]
         delimiter_start = '.'
         delimiter_end = '.'
@@ -100,19 +102,27 @@ def extract_phrases(keyword, text, api_key):
     print("Positions found:", positions)
     phrases = []
     for position in positions:
-        start = find_prev(text, position, delimiter_start)
+        if searchstart:
+            start = find_prev(text, position, delimiter_start)
+        else:
+            start = position
         if start is None:
             return
         end = find_next(text, position, delimiter_end)
         if end is None:
             return
         sentence = text[start + 1:end].replace('\n', ' ')
-        if len(sentence) < 1000:  # TODO: decide on max length of sentence
+        if len(sentence) < MAX_LENGHT_PHRASE and len(phrases)<MAX_NUMBER_OF_PHRASES:  # TODO: find a smarter way to do this
             phrases.append(sentence)
+        else:
+            print('A phrase is too long')
     phrases = list(set(phrases))  # set remove duplicate phrases from the list
     # clean the phrases from \cite
-    phrases = promptcleanLatex(phrases, api_key)
-    return phrases
+    #phrases = promptcleanLatex(phrases, api_key)
+    if len(phrases)==MAX_NUMBER_OF_PHRASES:
+        return phrases, True
+    else:
+        return phrases, False
 
 
 def promptcleanLatex(phrases, api_key):
@@ -136,11 +146,12 @@ def promptcleanLatex(phrases, api_key):
     return clean_phrases
 
 
-def promptText_keywords(question, api_key):
+def promptText_keywords(question, api_key, synonyms=False):
     """ Prompt the question to gpt and return the keywords """
-
-    # keywords_tag = "Extract keywords from this phrase:\n\n "
-    keywords_tag = "Extract keywords and their synonims from this phrase :\n\n "
+    if synonyms is False:
+        keywords_tag = "Extract keywords from this phrase:\n\n "
+    else:
+        keywords_tag = "Extract keywords and their synonims from this phrase :\n\n "
     prompt = keywords_tag + question
     # openai.organization = 'Default'
     openai.api_key = api_key
