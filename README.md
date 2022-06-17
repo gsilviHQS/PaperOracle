@@ -16,7 +16,7 @@ The tool downloads both the PDF and tar.gz containing the source files from arxi
 You can either ask the engine to search for keywords based on the question prompted, or insert/add keywords yourself. 
 These will be searched for in the paper`s tex file and the matching phrases used to inquire the question to the GPT3 engine.
 
-If no keywords are found in the text, the program will output 'No answer found.'
+If no keywords are found in the text, the program will output 'No phrases found in the paper matching the keywords.'
 
 Examples:
 ![plot](./example1.png)
