@@ -92,19 +92,29 @@ def find_prev(s, pos, c):
 
 def extract_phrases(keyword, text, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
+    max_number_of_phrases = MAX_NUMBER_OF_PHRASES
+    max_lenght_phrases = MAX_LENGHT_PHRASE
     searchstart = True
     if len([m.start() for m in re.finditer(r"\\" + keyword, text)]) > 0:  # if the keyword of type \keyword
-        positions = [m.start() for m in re.finditer(r"\\" + keyword, text)]
         print('keyword of latex-type \\' + keyword)
-        delimiter_start = '\n'
-        delimiter_end = '}'
-    # if the keyword of type \begin{keyword}
-    elif len([m.start() for m in re.finditer(r"\\begin{" + keyword, text)]) > 0:
+        positions = [m.start() for m in re.finditer(r"\\" + keyword, text)]
+        # delimiter_start = '\n'
+        searchstart = False
+        delimiter_end = '}'   
+    elif len([m.start() for m in re.finditer(r"\\begin{" + keyword, text)]) > 0:  # if the keyword of type \begin{keyword}
+        print('keyword of latex-type \\begin{' + keyword + '}')
         positions = [m.start()
                      for m in re.finditer(r"\\begin{" + keyword, text)]
-        print('keyword of latex-type \\begin{' + keyword + '}')
         searchstart = False
         delimiter_end = 'end{' + keyword + '}'
+    elif len([m.start() for m in re.finditer(r"\\section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword}
+        print('keyword of latex-type \\section{' + keyword + '}')
+        positions = [m.start()
+                     for m in re.finditer(r"\\section{" + keyword, text)]
+        searchstart = False
+        delimiter_end = '\\section' # or '\\subsection'
+        max_lenght_phrases = 12000  # exception for the section keyword
+        max_number_of_phrases = 1
     else:
         print('normal type keyword:' + keyword)
         #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
@@ -116,10 +126,9 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
     stop_signal = False
     phrases = []
     for position in positions:
+        start = position
         if searchstart:
             start = find_prev(text, position, delimiter_start)
-        else:
-            start = position
         if start is None:
             continue
         end = find_next(text, position, delimiter_end)
@@ -128,9 +137,9 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         sentence = text[start + 1:end].replace('\n', ' ')
 
         # TODO: find a smarter way to do this below
-        if len(sentence) >= MAX_LENGHT_PHRASE:
+        if len(sentence) >= max_lenght_phrases:
             print('A sentence is too long:', sentence)
-        elif number_of_phrases >= MAX_NUMBER_OF_PHRASES:
+        elif number_of_phrases >= max_number_of_phrases:
             stop_signal = True
             print('Enought sentences added:', len(phrases),' out of  ',len(positions),' sentences found')
             return phrases, stop_signal
