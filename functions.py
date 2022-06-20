@@ -11,6 +11,18 @@ from bs4 import BeautifulSoup
 MAX_LENGHT_PHRASE = 2000
 MAX_NUMBER_OF_PHRASES = 10
 
+
+def remove_duplicates(list_of_phrases):
+    """ Remove duplicates from a list """
+    seen = set()
+    clean_list_of_phrases = []
+    for item in list_of_phrases:
+        if item not in seen:
+            seen.add(item)
+            clean_list_of_phrases.append(item)
+    return clean_list_of_phrases
+
+
 def getTitleOfthePaper(paper_url):
     """ 
     Returns the title of the paper from the arxiv page """
@@ -78,7 +90,7 @@ def find_prev(s, pos, c):
     return i
 
 
-def extract_phrases(keyword, text, api_key):
+def extract_phrases(keyword, text, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
     searchstart = True
     if len([m.start() for m in re.finditer(r"\\" + keyword, text)]) > 0:  # if the keyword of type \keyword
@@ -95,11 +107,13 @@ def extract_phrases(keyword, text, api_key):
         delimiter_end = 'end{' + keyword + '}'
     else:
         print('normal type keyword:' + keyword)
-        positions = [m.start() for m in re.finditer(r'\b' + keyword, text)]
+        #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
+        positions = [m.start() for m in re.finditer(keyword, text)]
         delimiter_start = '.'
         delimiter_end = '.'
 
     print("Positions found:", positions)
+    stop_signal = False
     phrases = []
     for position in positions:
         if searchstart:
@@ -107,22 +121,28 @@ def extract_phrases(keyword, text, api_key):
         else:
             start = position
         if start is None:
-            return
+            continue
         end = find_next(text, position, delimiter_end)
         if end is None:
-            return
+            continue
         sentence = text[start + 1:end].replace('\n', ' ')
-        if len(sentence) < MAX_LENGHT_PHRASE and len(phrases)<MAX_NUMBER_OF_PHRASES:  # TODO: find a smarter way to do this
-            phrases.append(sentence)
+
+        # TODO: find a smarter way to do this below
+        if len(sentence) >= MAX_LENGHT_PHRASE:
+            print('A sentence is too long:', sentence)
+        elif number_of_phrases >= MAX_NUMBER_OF_PHRASES:
+            stop_signal = True
+            print('Enought sentences added:', len(phrases),' out of  ',len(positions),' sentences found')
+            return phrases, stop_signal
         else:
-            print('A phrase is too long')
-    phrases = list(set(phrases))  # set remove duplicate phrases from the list
+            phrases.append(sentence)
+            number_of_phrases += 1
+            
+    phrases = remove_duplicates(phrases)  # set remove duplicate phrases from the list
     # clean the phrases from \cite
     #phrases = promptcleanLatex(phrases, api_key)
-    if len(phrases)==MAX_NUMBER_OF_PHRASES:
-        return phrases, True
-    else:
-        return phrases, False
+ 
+    return phrases, stop_signal  # return the phrases and the stop signal triggered by the number of phrases
 
 
 def promptcleanLatex(phrases, api_key):
@@ -179,10 +199,10 @@ def promptText_question(question, inputtext, header, api_key):
         question += '.'
     # PROMPT HERE
     prompt = header +\
-        "\n\n Text:\n" +\
+        "\n\n Phrases:\n" +\
         inputtext +\
-        "\n\n Prompt:In the text above, " +\
-        question + " If you are not sure about the answer say 'I am not sure but I think' and then try to answer:'\n"
+        "\n\n Prompt:From the phrase above, give an answer to the question," +\
+        question + "\n If you are not sure about the answer say 'I am not sure but I think' and then try to answer:'\n"
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
