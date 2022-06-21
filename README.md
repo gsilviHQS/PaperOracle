@@ -5,7 +5,8 @@ To use the program, you need an API key from OpenAI. You can create a free accou
 Once you have it you can save it in a local API.txt file to retrieve it automatically.
 
 # Libraries
-You  need to install the openai and bs4 libraries: `pip install openai bs4` 
+You  need to install the openai and bs4 libraries: `pip install openai bs4`
+also tkinter, sudo apt-get install python-tk
 Tested on python 3.9
 
 # Run and Usage
