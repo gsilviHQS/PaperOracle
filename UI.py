@@ -22,7 +22,7 @@ class Application(tk.Frame):
         self.token_usage.set(0)
         self.token_label = tk.StringVar()
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
-        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2)
+        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.W)
         tk.Label(self.master, text="arXiv URL").grid(row=1)
         tk.Label(self.master, text="Paper title").grid(row=2)
         tk.Label(self.master, text="Question").grid(row=3)
@@ -84,6 +84,9 @@ class Application(tk.Frame):
                              borderwidth=2,
                              )
 
+        #add button next to token usage to reset the valuef of token usage and dollars usage
+        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.W)                     
+
         tk.Button(self.master, text="Search keywords from question", command=self.search_keywords).grid(row=4,
                                                                                           column=1)
         #add boolean variable 
@@ -106,6 +109,13 @@ class Application(tk.Frame):
         tk.Button(self.master, text='Quit', command=self.quit).grid(row=9,
                                                                     column=1,
                                                                     pady=4)
+    def reset_token_usage(self):
+        self.token_usage.set(0)
+        self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
+        self.dollars.set(0.0)
+        # tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.W)
+        # tk.Label(self.master, textvariable = self.dollars).grid(row=1, column=2 , sticky=tk.W)
+
     def save_api_key(self):
         api_key = self.apikey.get()
         with open('API.txt', 'w') as f:
