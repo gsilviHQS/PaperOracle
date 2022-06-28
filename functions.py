@@ -253,15 +253,12 @@ def promptText_relevance(question, phrase, api_key):
     return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 
-def promptText_keywords(question, api_key, synonyms=False):
+def promptText_keywords(question, api_key):
     """ Prompt the question to gpt and return the keywords """
     preshot = "Question:What is the aim of the VQE?\n\nExtract keywords from the question: \n aim, VQE \n\n"
 
-    if synonyms is False:
-        keywords_tag = "\n\nExtract many keywords from the question:\n\n Keywords:"
-    else:
-        keywords_tag = "\n\nExtract many keywords and their synonims from the question:\n\n Keywords:"
     
+    keywords_tag = "\n\nExtract many keywords from the question:\n\n Keywords:"
     # prompt = preshot + "Question:"+ question + keywords_tag
     prompt = "Question:"+ question + keywords_tag
     # openai.organization = 'Default'

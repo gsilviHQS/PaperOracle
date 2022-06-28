@@ -22,7 +22,7 @@ class Application(tk.Frame):
         self.token_usage.set(0)
         self.token_label = tk.StringVar()
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
-        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.W)
+        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.E)
         tk.Label(self.master, text="arXiv URL").grid(row=1)
         tk.Label(self.master, text="Paper title").grid(row=2)
         tk.Label(self.master, text="Question").grid(row=3)
@@ -45,7 +45,7 @@ class Application(tk.Frame):
         else:
             self.apikey.insert(0, 'Your API Key here')
             #add button to save the api key
-            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.W)
+            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.E)
 
         
         
@@ -85,20 +85,14 @@ class Application(tk.Frame):
                              )
 
         #add button next to token usage to reset the valuef of token usage and dollars usage
-        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.W)                     
+        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.E)                     
 
-        tk.Button(self.master, text="Search keywords from question", command=self.search_keywords).grid(row=4,
+        tk.Button(self.master, text="Generate keywords from question", command=self.search_keywords).grid(row=4,
                                                                                           column=1)
-        #add boolean variable 
-        self.boolean = tk.IntVar()
-        self.boolean.set(0)
-        #add checkbox below search keywords button to ask for synonims
-        self.checkbox = tk.Checkbutton(self.master, text="and synonyms", variable=self.boolean).grid(row=4, 
-                                                                                                     column=2, 
-                                                                                                     sticky=tk.W)
+
         self.boolean2 = tk.IntVar()
         self.boolean2.set(0)
-        self.check_phrase = tk.Checkbutton(self.master, text="(ALPHA)Check phrases for relevance", variable=self.boolean2).grid(row=8, 
+        self.check_phrase = tk.Checkbutton(self.master, text="(Expensive)Check phrases for relevance", variable=self.boolean2).grid(row=8, 
                                                                                                      column=2, 
                                                                                                      sticky=tk.W)
         
@@ -143,12 +137,7 @@ class Application(tk.Frame):
     def search_keywords(self):
         api_key = self.apikey.get()
         question = self.question.get()
-        # print value of boolean variable
-        if self.boolean.get() == 1:
-            also_synonyms = True
-        else:
-            also_synonyms = False
-        keywords, tokens, model = functions.promptText_keywords(question, api_key, also_synonyms)
+        keywords, tokens, model = functions.promptText_keywords(question, api_key)
         self.update_token_usage(tokens, model)
        
         # show keywords in the output box
