@@ -2,7 +2,7 @@
 
 # API KEY 
 To use the program, you need an API key from OpenAI. You can create a free account at https://beta.openai.com/, which will give you 18$ to try it out for hundreds of trials. Once you have an account, you can create/find your APIKEY under Personal->View API Keys.
-Once you have it you paste it in the program e save it in a local API.txt file to retrieve it automatically at later usage.
+You can then paste it in the program and save it in a local API.txt file to retrieve it automatically at later usage.
 
 # Libraries
 You  need to install the openai and bs4 libraries: `pip install openai bs4`
