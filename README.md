@@ -19,6 +19,5 @@ These will be searched for in the paper`s tex file and the matching phrases used
 
 If no keywords are found in the text, the program will output 'No phrases found in the paper matching the keywords.'
 
-Examples:
+Example:
 ![plot](./example1.png)
-![plot](./example2.png)
