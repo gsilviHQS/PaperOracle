@@ -45,7 +45,7 @@ class Application(tk.Frame):
         else:
             self.apikey.insert(0, 'Your API Key here')
             #add button to save the api key
-            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.E)
+            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.W)
 
         
         
