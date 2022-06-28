@@ -1,3 +1,4 @@
+from lib2to3.pgen2 import token
 import openai
 # import wget
 # import pathlib
@@ -11,7 +12,7 @@ from collections import Counter
 
 MAX_LENGHT_PHRASE = 2000
 MAX_NUMBER_OF_PHRASES = 100
-PHRASES_TO_CHECK = 10
+PHRASES_TO_USE = 10
 
 
 def remove_duplicates(list_of_phrases):
@@ -67,7 +68,7 @@ def getPaper(paper_url):
 
 
 def extract_all_text(texfiles):
-    """ Extract the text from the tex file """
+    """ Extract all the text from the tex file """
     text = ''
     for texfile in texfiles:
         with open(texfile, 'r') as f:
@@ -77,22 +78,24 @@ def extract_all_text(texfiles):
             text += line
     return text
 
-def find_next(s, pos, list_of_substrings):
-    list_of_positions = list(map(lambda x: s.find(x,pos+1), list_of_substrings))
-    cleaner_list = [pos for pos in list_of_positions if pos > 0] # remove -1
-    if len(cleaner_list)==0:
+def find_next(string, pos, list_of_substrings):
+    """ Find the (min) next position of a list of substring in a string """
+    list_of_positions = list(map(lambda x: string.find(x,pos+1), list_of_substrings))
+    positive_positions = [pos for pos in list_of_positions if pos > 0] # remove -1, which means no match
+    if len(positive_positions)==0:
         return None
     else:
-        return min(cleaner_list)
+        return min(positive_positions)
 
 
-def find_prev(s, pos, list_of_substrings):
-    list_of_positions = list(map(lambda x: s.rfind(x, 0, pos), list_of_substrings))
-    cleaner_list = [pos for pos in list_of_positions if pos > 0] # remove -1
-    if len(cleaner_list)==0:
+def find_prev(string, pos, list_of_substrings):
+    """ Find the (max) previous position of a list of substring in a string """
+    list_of_positions = list(map(lambda x: string.rfind(x, 0, pos), list_of_substrings))
+    positive_positions = [pos for pos in list_of_positions if pos > 0] # remove -1, which means no match
+    if len(positive_positions)==0:
         return None
     else:
-        return max(cleaner_list)
+        return max(positive_positions)
 
 
 
@@ -110,7 +113,7 @@ def find_prev(s, pos, list_of_substrings):
 #     return i
 
 
-def extract_phrases(keyword, text, question, api_key, number_of_phrases):
+def extract_phrases(keyword, text, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
     max_number_of_phrases = MAX_NUMBER_OF_PHRASES
     max_lenght_phrases = MAX_LENGHT_PHRASE
@@ -174,7 +177,7 @@ def extract_phrases(keyword, text, question, api_key, number_of_phrases):
             phrases.append(sentence)
             number_of_phrases += 1
             
-    phrases = remove_duplicates(phrases)  # set remove duplicate phrases from the list
+    phrases = remove_duplicates(phrases)  # remove duplicate phrases from the list
     # clean the phrases from \cite
     #phrases = promptcleanLatex(phrases, api_key)
  
@@ -194,14 +197,17 @@ def check_relevance(list_of_phrases, question, api_key, askGPT=True):
     #             clean_list_of_phrases.remove(item)
     #             clean_list_of_phrases.insert(0, item)
     clean_list_of_phrases = Counter(list_of_phrases).most_common()  # order phrases by most common
-    
-    for phrase in clean_list_of_phrases[0:PHRASES_TO_CHECK]:
-        if askGPT:         
-            if 'Yes' in promptText_relevance(question, phrase[0], api_key):
+    total_tokens = 0
+    model = None
+    for phrase in clean_list_of_phrases[0:PHRASES_TO_USE]:
+        if askGPT:
+            result, tokens, model = promptText_relevance(question, phrase[0], api_key)
+            total_tokens += tokens
+            if 'Yes' in result:
                 phrases_with_relevance.append(phrase)
         else:
             phrases_with_relevance.append(phrase)
-    return phrases_with_relevance
+    return phrases_with_relevance, total_tokens, model
 
 def promptcleanLatex(phrases, api_key):
     """ Loop over phrases and prompt them to gpt to remove \cite() """
@@ -221,7 +227,7 @@ def promptcleanLatex(phrases, api_key):
             )
             phrase = response['choices'][0]['text']
         clean_phrases.append(phrase)
-    return clean_phrases
+    return clean_phrases, response['usage']['total_tokens']
 
 def promptText_relevance(question, phrase, api_key):
     """ Prompt the question to gpt and return the keywords """
@@ -244,16 +250,20 @@ def promptText_relevance(question, phrase, api_key):
         # stop=["\n"]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
-    return response['choices'][0]['text']
+    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 
 def promptText_keywords(question, api_key, synonyms=False):
     """ Prompt the question to gpt and return the keywords """
+    preshot = "Question:What is the aim of the VQE?\n\nExtract keywords from the question: \n aim, VQE \n\n"
+
     if synonyms is False:
-        keywords_tag = "Extract keywords from this phrase:\n\n "
+        keywords_tag = "\n\nExtract many keywords from the question:\n\n Keywords:"
     else:
-        keywords_tag = "Extract keywords and their synonims from this phrase :\n\n "
-    prompt = keywords_tag + question
+        keywords_tag = "\n\nExtract many keywords and their synonims from the question:\n\n Keywords:"
+    
+    # prompt = preshot + "Question:"+ question + keywords_tag
+    prompt = "Question:"+ question + keywords_tag
     # openai.organization = 'Default'
     openai.api_key = api_key
     # engine_list = openai.Engine.list() # calling the engines available from the openai api
@@ -266,10 +276,10 @@ def promptText_keywords(question, api_key, synonyms=False):
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        # stop=["\n"]
+        stop=["\n", "."]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
-    return response['choices'][0]['text']
+    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 
 def promptText_question(question, inputtext, header, api_key):
@@ -282,8 +292,8 @@ def promptText_question(question, inputtext, header, api_key):
     prompt = header +\
         "\n\n Phrases:\n" +\
         inputtext +\
-        "\n\n Prompt:From the phrase above, give an answer to the question," +\
-        question + "\n If you are not sure about the answer say 'I am not sure but I think' and then try to answer:'\n"
+        "\n\n Prompt:From the Phrases above, give an answer to the question: " +\
+        question + "\n If you are not sure say 'I am not sure but I think' and then try to answer:'\n"
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
@@ -297,7 +307,7 @@ def promptText_question(question, inputtext, header, api_key):
         # stop=["\n"]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
-    return response
+    return response['choices'][0]['text'] , response['usage']['total_tokens'], response['model']
 
 # OBSOLETE FUNCTIONS
 

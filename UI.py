@@ -16,16 +16,25 @@ class Application(tk.Frame):
 
     def create_widgets(self):
         tk.Label(self.master, text="API Key").grid(row=0)
+        self.dollars = tk.DoubleVar()
+        self.dollars.set(0.0)
+        self.token_usage = tk.IntVar()
+        self.token_usage.set(0)
+        self.token_label = tk.StringVar()
+        self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
+        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2)
         tk.Label(self.master, text="arXiv URL").grid(row=1)
-        tk.Label(self.master, text="Question").grid(row=2)
-        tk.Label(self.master, text="Keywords to search").grid(row=3)
-        tk.Label(self.master, text="Paper").grid(row=5)
+        tk.Label(self.master, text="Paper title").grid(row=2)
+        tk.Label(self.master, text="Question").grid(row=3)
+        tk.Label(self.master, text="Keywords to search\n(separated by comma)").grid(row=5)
+
+     
         tk.Label(self.master, text="Answer from GPT-3").grid(row=6)
         tk.Label(self.master, text="Matching Phrases \n in tex files").grid(row=7)
 
         self.papertitle = tk.StringVar()
         self.papertitle.set('\n')
-        tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=1)
+        tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=2, column=1)
 
         self.apikey = tk.Entry(self.master, width=30)
 
@@ -47,10 +56,10 @@ class Application(tk.Frame):
 
         self.apikey.grid(row=0, column=1)
         self.url.grid(row=1, column=1)
-        self.question.grid(row=2, column=1)
+        self.question.grid(row=3, column=1)
 
         self.keybox = tk.Text(self.master, width=50, height=1)
-        self.keybox.grid(row=4, column=1)
+        self.keybox.grid(row=5, column=1)
         # self.keybox.config(state=tk.DISABLED)
 
         # output box to display the result
@@ -75,18 +84,18 @@ class Application(tk.Frame):
                              borderwidth=2,
                              )
 
-        tk.Button(self.master, text="Search keywords from question", command=self.search_keywords).grid(row=3,
+        tk.Button(self.master, text="Search keywords from question", command=self.search_keywords).grid(row=4,
                                                                                           column=1)
         #add boolean variable 
         self.boolean = tk.IntVar()
         self.boolean.set(0)
         #add checkbox below search keywords button to ask for synonims
-        self.checkbox = tk.Checkbutton(self.master, text="and synonyms", variable=self.boolean).grid(row=3, 
+        self.checkbox = tk.Checkbutton(self.master, text="and synonyms", variable=self.boolean).grid(row=4, 
                                                                                                      column=2, 
                                                                                                      sticky=tk.W)
         self.boolean2 = tk.IntVar()
         self.boolean2.set(0)
-        self.check_phrase = tk.Checkbutton(self.master, text="Check phrases for relevance", variable=self.boolean2).grid(row=4, 
+        self.check_phrase = tk.Checkbutton(self.master, text="(ALPHA)Check phrases for relevance", variable=self.boolean2).grid(row=8, 
                                                                                                      column=2, 
                                                                                                      sticky=tk.W)
         
@@ -102,19 +111,41 @@ class Application(tk.Frame):
         with open('API.txt', 'w') as f:
             f.write(api_key)
 
+    def update_token_usage(self,tokens, model):
+        total_token_used = self.token_usage.get() #get the current token usage
+        total_dollars_used = self.dollars.get() #get the current dollars usage
+        
+        total_token_used += tokens #add the tokens used to the total token usage
+        self.token_usage.set(total_token_used) #update the token usage
+
+        if model == 'text-davinci-002': #if the model is davinci
+            dollars = tokens * 0.00006
+        elif model == 'text-babbage-001': #if the model is babbage
+            dollars = tokens * 0.0000012
+        else:
+            dollars = 0
+        total_dollars_used += dollars #add the dollars used to the total dollars usage
+        self.dollars.set(total_dollars_used) #update the dollars usage
+
+        self.token_label.set('Usage: '+str(total_token_used)+' tokens ($'+"{:3.5f}".format(total_dollars_used)+')') #update the token usage label
+
+
     def search_keywords(self):
         api_key = self.apikey.get()
         question = self.question.get()
         # print value of boolean variable
         if self.boolean.get() == 1:
-            keywords = functions.promptText_keywords(question, api_key, True).strip('\n')
+            also_synonyms = True
         else:
-            keywords = functions.promptText_keywords(question, api_key).strip('\n')
+            also_synonyms = False
+        keywords, tokens, model = functions.promptText_keywords(question, api_key, also_synonyms)
+        self.update_token_usage(tokens, model)
+       
         # show keywords in the output box
         self.keybox.config(state=tk.NORMAL)
         self.keybox.delete('1.0', tk.END)  # clear the output box
-        self.keybox.insert(tk.END, keywords)  # insert keywords in the keybox
-        return keywords
+        self.keybox.insert(tk.END, keywords.strip('\n'))  # insert keywords in the keybox
+        return keywords.strip('\n')
 
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
@@ -135,7 +166,7 @@ class Application(tk.Frame):
         number_of_phrases = 0
         complete_text = functions.extract_all_text(tex_files)
         for keyword in keywords.split(','):  # loop through the keywords
-            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), complete_text, question,  api_key, number_of_phrases)
+            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), complete_text, api_key, number_of_phrases)
             
             if phrase is not None:
                 list_of_phrases.extend(phrase)
@@ -152,28 +183,31 @@ class Application(tk.Frame):
                     print('For keyword \'' + keyword + '\' no phrase found')
             if stop:
                 break  # if the stop flag is set, break the loop
-        # relevance = promptText_relevance(question, sentence, api_key)
+        # relevance, tokens = promptText_relevance(question, sentence, api_key)
 
 
-        if self.boolean2.get() == 1: 
-            askGPT3 = True
-        else:
-            askGPT3 = False
-        clean_list_of_phrases = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
-        just_phrases = []
-        phrase_with_frequency = []
-        for phrase in clean_list_of_phrases:
-            just_phrases.append(phrase[0])
-            phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
+
         
 
 
         # print('Phrases (',len(list_of_phrases),')',list_of_phrases)
         self.textbox.config(state=tk.NORMAL)
         self.textbox.delete(1.0, tk.END)
-        if len(just_phrases) > 0:
-            list_of_phrases = '-'+'\n-'.join(just_phrases)
+        if len(list_of_phrases) > 0:
+            
             print('list_of_phrases',list_of_phrases)
+            if self.boolean2.get() == 1: 
+                askGPT3 = True
+            else:
+                askGPT3 = False
+            clean_list_of_phrases, tokens, model = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
+            self.update_token_usage(tokens, model)
+            
+            just_phrases = []
+            phrase_with_frequency = []
+            for phrase in clean_list_of_phrases:
+                just_phrases.append(phrase[0])
+                phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
 
             # show the phrases in the output box
             self.textbox2.config(state=tk.NORMAL)
@@ -182,16 +216,14 @@ class Application(tk.Frame):
             self.textbox2.config(state=tk.DISABLED)
             header = functions.getTitleOfthePaper(url)
             try:
-                result = functions.promptText_question(question, list_of_phrases, header, api_key)
-                self.textbox.insert(tk.END, result['choices'][0]['text'])  # insert the answer in the output box
+                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), header, api_key)
+                self.update_token_usage(tokens, model)
+                self.textbox.insert(tk.END, result)  # insert the answer in the output box
             except Exception as e:
                 self.textbox.insert(tk.END, 'Error: ' + str(e))
             
         else:
-            if askGPT3:
-                self.textbox.insert(tk.END, 'No relevant phrases found in the paper matching the keywords. Try different keywords or untick "Check phrases for relevance"')
-            else:
-                self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
+            self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
         self.textbox.config(state=tk.DISABLED)
 
 
