@@ -147,8 +147,8 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         print('normal type keyword:' + keyword)
         #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
         positions = [m.start() for m in re.finditer(keyword, text)]
-        delimiter_start = ['. ','.\n']
-        delimiter_end = delimiter_start
+        delimiter_start = ['. ','\n']
+        delimiter_end = ['. ','.\n']
 
     print("Positions found:", positions)
     stop_signal = False
