@@ -21,3 +21,4 @@ If no keywords are found in the text, the program will output 'No phrases found 
 
 Example:
 ![plot](./example3.png)
+![plot](./example4.png)

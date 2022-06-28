@@ -231,7 +231,7 @@ class Application(tk.Frame):
 
 
 root = tk.Tk()
-root.title("ArXiv Paper Answerin Machine with GPT-3 OpenAI")
+root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
 root.geometry("1000x800")
 root.columnconfigure(3)
 root.bind_class("Entry", "<<Paste>>", functions.custom_paste)
