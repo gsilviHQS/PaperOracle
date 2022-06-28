@@ -333,3 +333,15 @@ def extract_section_and_subsections(keywords, texfile):
         end = texfile.find(keywords[i + 1])
         extracted_text.append(texfile[start:end])
     return extracted_text
+
+
+
+#UTILITIES for INTERFACE
+
+def custom_paste(event):
+        try:
+            event.widget.delete("sel.first", "sel.last")
+        except:
+            pass
+        event.widget.insert("insert", event.widget.clipboard_get())
+        return "break"

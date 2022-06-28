@@ -103,6 +103,8 @@ class Application(tk.Frame):
         tk.Button(self.master, text='Quit', command=self.quit).grid(row=9,
                                                                     column=1,
                                                                     pady=4)
+
+
     def reset_token_usage(self):
         self.token_usage.set(0)
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
@@ -226,10 +228,13 @@ class Application(tk.Frame):
         self.textbox.config(state=tk.DISABLED)
 
 
+
+
 root = tk.Tk()
 root.title("ArXiv Paper Answerin Machine with GPT-3 OpenAI")
 root.geometry("1000x800")
 root.columnconfigure(3)
+root.bind_class("Entry", "<<Paste>>", functions.custom_paste)
 root.grid_columnconfigure(0, weight=1)
 root.grid_columnconfigure(1, weight=1)
 root.grid_columnconfigure(2, weight=1)
