@@ -1,4 +1,10 @@
 papers/
+build/
+dist/
+*.pyc
+*.swp
+*.desktop*
+*.spec
 API.txt
 Paper_Genie.ipynb
 Paper_questioner.ipynb

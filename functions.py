@@ -7,9 +7,11 @@ import os
 import re
 import requests
 from bs4 import BeautifulSoup
+from collections import Counter
 
 MAX_LENGHT_PHRASE = 2000
-MAX_NUMBER_OF_PHRASES = 10
+MAX_NUMBER_OF_PHRASES = 100
+PHRASES_TO_CHECK = 10
 
 
 def remove_duplicates(list_of_phrases):
@@ -75,38 +77,61 @@ def extract_all_text(texfiles):
             text += line
     return text
 
-
-def find_next(s, pos, c):
-    i = s.find(c, pos + 1)  # find the next occurrence of c after pos
-    if i == -1:
+def find_next(s, pos, list_of_substrings):
+    list_of_positions = list(map(lambda x: s.find(x,pos+1), list_of_substrings))
+    cleaner_list = [pos for pos in list_of_positions if pos > 0] # remove -1
+    if len(cleaner_list)==0:
         return None
-    return i
+    else:
+        return min(cleaner_list)
 
 
-def find_prev(s, pos, c):
-    i = s.rfind(c, 0, pos)  # find the previous occurrence of c before pos
-    if i == -1:
+def find_prev(s, pos, list_of_substrings):
+    list_of_positions = list(map(lambda x: s.rfind(x, 0, pos), list_of_substrings))
+    cleaner_list = [pos for pos in list_of_positions if pos > 0] # remove -1
+    if len(cleaner_list)==0:
         return None
-    return i
+    else:
+        return max(cleaner_list)
 
 
-def extract_phrases(keyword, text, api_key, number_of_phrases):
+
+# def find_next(s, pos, c):
+#     i = s.find(c, pos + 1)  # find the next occurrence of c after pos
+#     if i == -1:
+#         return None
+#     return i
+
+
+# def find_prev(s, pos, c):
+#     i = s.rfind(c, 0, pos)  # find the previous occurrence of c before pos
+#     if i == -1:
+#         return None
+#     return i
+
+
+def extract_phrases(keyword, text, question, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
     max_number_of_phrases = MAX_NUMBER_OF_PHRASES
     max_lenght_phrases = MAX_LENGHT_PHRASE
     searchstart = True
+    if '\\'in keyword:
+        print(keyword)
+        keyword = keyword.replace('\\', '\\\\')
+        print(keyword)
+
     if len([m.start() for m in re.finditer(r"\\" + keyword, text)]) > 0:  # if the keyword of type \keyword
         print('keyword of latex-type \\' + keyword)
         positions = [m.start() for m in re.finditer(r"\\" + keyword, text)]
         # delimiter_start = '\n'
         searchstart = False
-        delimiter_end = '}'   
+        delimiter_end = ['}'] 
     elif len([m.start() for m in re.finditer(r"\\begin{" + keyword, text)]) > 0:  # if the keyword of type \begin{keyword}
         print('keyword of latex-type \\begin{' + keyword + '}')
         positions = [m.start()
                      for m in re.finditer(r"\\begin{" + keyword, text)]
         searchstart = False
-        delimiter_end = 'end{' + keyword + '}'
+        delimiter_end = ['end{' + keyword + '}']
     elif len([m.start() for m in re.finditer(r"\\section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword}
         print('keyword of latex-type \\section{' + keyword + '}')
         positions = [m.start()
@@ -114,13 +139,13 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         searchstart = False
         delimiter_end = '\\section' # or '\\subsection'
         max_lenght_phrases = 12000  # exception for the section keyword
-        max_number_of_phrases = 1
+        max_number_of_phrases = 1 # exception for the section keyword
     else:
         print('normal type keyword:' + keyword)
         #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
         positions = [m.start() for m in re.finditer(keyword, text)]
-        delimiter_start = '.'
-        delimiter_end = '.'
+        delimiter_start = ['. ','.\n']
+        delimiter_end = delimiter_start
 
     print("Positions found:", positions)
     stop_signal = False
@@ -135,6 +160,8 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         if end is None:
             continue
         sentence = text[start + 1:end].replace('\n', ' ')
+        keyword_filter = ['section','%' , 'bibname'] # keywords that should not be included in the phrases
+        if searchstart and  any(x in sentence for x in keyword_filter) : continue
 
         # TODO: find a smarter way to do this below
         if len(sentence) >= max_lenght_phrases:
@@ -142,7 +169,7 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         elif number_of_phrases >= max_number_of_phrases:
             stop_signal = True
             print('Enought sentences added:', len(phrases),' out of  ',len(positions),' sentences found')
-            return phrases, stop_signal
+            return phrases, stop_signal, number_of_phrases
         else:
             phrases.append(sentence)
             number_of_phrases += 1
@@ -151,8 +178,30 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
     # clean the phrases from \cite
     #phrases = promptcleanLatex(phrases, api_key)
  
-    return phrases, stop_signal  # return the phrases and the stop signal triggered by the number of phrases
+    return phrases, stop_signal, number_of_phrases  # return the phrases and the stop signal triggered by the number of phrases
 
+def check_relevance(list_of_phrases, question, api_key, askGPT=True):
+    """ Check the relevance of the phrases to the question """
+    seen = set()
+    clean_list_of_phrases = []
+    phrases_with_relevance = []
+    # for item in list_of_phrases:
+    #         if item not in seen:
+    #             if 'bibname' not in item:
+    #                 seen.add(item)
+    #                 clean_list_of_phrases.append(item)
+    #         else:
+    #             clean_list_of_phrases.remove(item)
+    #             clean_list_of_phrases.insert(0, item)
+    clean_list_of_phrases = Counter(list_of_phrases).most_common()  # order phrases by most common
+    
+    for phrase in clean_list_of_phrases[0:PHRASES_TO_CHECK]:
+        if askGPT:         
+            if 'Yes' in promptText_relevance(question, phrase[0], api_key):
+                phrases_with_relevance.append(phrase)
+        else:
+            phrases_with_relevance.append(phrase)
+    return phrases_with_relevance
 
 def promptcleanLatex(phrases, api_key):
     """ Loop over phrases and prompt them to gpt to remove \cite() """
@@ -173,6 +222,29 @@ def promptcleanLatex(phrases, api_key):
             phrase = response['choices'][0]['text']
         clean_phrases.append(phrase)
     return clean_phrases
+
+def promptText_relevance(question, phrase, api_key):
+    """ Prompt the question to gpt and return the keywords """
+
+    header = "Question: : " + question + "\n"
+    body = "Possible answer:" + phrase + "\n"
+    prompt = header + body + "Is the Possible answer relevant to the Question? Yes or No:"
+    # openai.organization = 'Default'
+    openai.api_key = api_key
+    # engine_list = openai.Engine.list() # calling the engines available from the openai api
+    print('INPUT:\n', prompt)
+    response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt=prompt,
+        temperature=0,
+        max_tokens=3,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        # stop=["\n"]
+    )
+    print('\nOUTPUT:', response['choices'][0]['text'])
+    return response['choices'][0]['text']
 
 
 def promptText_keywords(question, api_key, synonyms=False):

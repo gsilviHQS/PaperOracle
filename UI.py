@@ -1,10 +1,11 @@
+#! /usr/bin/env python
 import tkinter as tk 
 
 import functions
 import os
 
-default_url = 'https://arxiv.org/abs/2103.14753'
-default_question = 'What is the LCU?'
+default_url = 'https://arxiv.org/abs/2201.08194v1'
+default_question = 'What is the weak barren plateau condition?'
 
 
 class Application(tk.Frame):
@@ -83,6 +84,11 @@ class Application(tk.Frame):
         self.checkbox = tk.Checkbutton(self.master, text="and synonyms", variable=self.boolean).grid(row=3, 
                                                                                                      column=2, 
                                                                                                      sticky=tk.W)
+        self.boolean2 = tk.IntVar()
+        self.boolean2.set(0)
+        self.check_phrase = tk.Checkbutton(self.master, text="Check phrases for relevance", variable=self.boolean2).grid(row=4, 
+                                                                                                     column=2, 
+                                                                                                     sticky=tk.W)
         
 
         tk.Button(self.master, text='Run', command=self.run).grid(row=8,
@@ -129,7 +135,7 @@ class Application(tk.Frame):
         number_of_phrases = 0
         complete_text = functions.extract_all_text(tex_files)
         for keyword in keywords.split(','):  # loop through the keywords
-            phrase, stop = functions.extract_phrases(keyword.strip(), complete_text, api_key, number_of_phrases)
+            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), complete_text, question,  api_key, number_of_phrases)
             
             if phrase is not None:
                 list_of_phrases.extend(phrase)
@@ -137,35 +143,42 @@ class Application(tk.Frame):
                 print('For keyword \'' + keyword + '\' the phrase found are:', len(phrase))
             else:
                 lowercase_keyword = keyword.strip().lower()
-                phrase_lower, stop = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
-                if phrase_lower is not None:
-                    list_of_phrases.append(".\n".join(phrase_lower))
-                    print('For keyword \'' + lowercase_keyword + '\' the phrase found are:', phrase_lower)
+                if lowercase_keyword != keyword.strip():
+                    phrase_lower, stop, number_of_phrases = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
+                    if phrase_lower is not None:
+                        list_of_phrases.append(".\n".join(phrase_lower))
+                        print('For keyword \'' + lowercase_keyword + '\' the phrase found are:', phrase_lower)
                 else:
                     print('For keyword \'' + keyword + '\' no phrase found')
             if stop:
                 break  # if the stop flag is set, break the loop
+        # relevance = promptText_relevance(question, sentence, api_key)
 
-        seen = set()
-        clean_list_of_phrases = []
-        for item in list_of_phrases:
-            if item not in seen:
-                seen.add(item)
-                clean_list_of_phrases.append(item)
+
+        if self.boolean2.get() == 1: 
+            askGPT3 = True
+        else:
+            askGPT3 = False
+        clean_list_of_phrases = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
+        just_phrases = []
+        phrase_with_frequency = []
+        for phrase in clean_list_of_phrases:
+            just_phrases.append(phrase[0])
+            phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
         
 
 
         # print('Phrases (',len(list_of_phrases),')',list_of_phrases)
         self.textbox.config(state=tk.NORMAL)
         self.textbox.delete(1.0, tk.END)
-        if len(clean_list_of_phrases) > 0:
-            list_of_phrases = '--'+'\n--'.join(clean_list_of_phrases)
+        if len(just_phrases) > 0:
+            list_of_phrases = '-'+'\n-'.join(just_phrases)
             print('list_of_phrases',list_of_phrases)
 
             # show the phrases in the output box
             self.textbox2.config(state=tk.NORMAL)
             self.textbox2.delete('1.0', tk.END)  # clear the output box
-            self.textbox2.insert(tk.END, list_of_phrases)  # insert phrases in the textbox
+            self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
             self.textbox2.config(state=tk.DISABLED)
             header = functions.getTitleOfthePaper(url)
             try:
@@ -175,12 +188,15 @@ class Application(tk.Frame):
                 self.textbox.insert(tk.END, 'Error: ' + str(e))
             
         else:
-            self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords')
+            if askGPT3:
+                self.textbox.insert(tk.END, 'No relevant phrases found in the paper matching the keywords. Try different keywords or untick "Check phrases for relevance"')
+            else:
+                self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
         self.textbox.config(state=tk.DISABLED)
 
 
 root = tk.Tk()
-root.title("ArXiv Question Answering with GPT-3 OpenAI")
+root.title("ArXiv Paper Answerin Machine with GPT-3 OpenAI")
 root.geometry("1000x800")
 root.columnconfigure(3)
 root.grid_columnconfigure(0, weight=1)
