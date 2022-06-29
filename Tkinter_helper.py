@@ -1,6 +1,16 @@
 import tkinter as tk 
 
 
+#UTILITIES for INTERFACE
+
+def custom_paste(event):
+        try:
+            event.widget.delete("sel.first", "sel.last")
+        except:
+            pass
+        event.widget.insert("insert", event.widget.clipboard_get())
+        return "break"
+
 class CustomText(tk.Text):
     '''A text widget with a new method, highlight_pattern()
 

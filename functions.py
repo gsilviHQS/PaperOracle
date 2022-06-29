@@ -172,17 +172,9 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
 
 def check_relevance(list_of_phrases, question, api_key, askGPT=True):
     """ Check the relevance of the phrases to the question """
-    seen = set()
-    clean_list_of_phrases = []
+
     phrases_with_relevance = []
-    # for item in list_of_phrases:
-    #         if item not in seen:
-    #             if 'bibname' not in item:
-    #                 seen.add(item)
-    #                 clean_list_of_phrases.append(item)
-    #         else:
-    #             clean_list_of_phrases.remove(item)
-    #             clean_list_of_phrases.insert(0, item)
+
     clean_list_of_phrases = Counter(list_of_phrases).most_common()  # order phrases by most common
     total_tokens = 0
     model = None
@@ -313,15 +305,7 @@ def promptText_question(question, inputtext, header, api_key):
 
 
 
-#UTILITIES for INTERFACE
 
-def custom_paste(event):
-        try:
-            event.widget.delete("sel.first", "sel.last")
-        except:
-            pass
-        event.widget.insert("insert", event.widget.clipboard_get())
-        return "break"
 
 
 

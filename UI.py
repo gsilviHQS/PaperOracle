@@ -1,9 +1,11 @@
 #! /usr/bin/env python
 import tkinter as tk 
-
-import functions
-from Tkinter_helper import CustomText
 import os
+
+#MY FUNCTIONS
+import functions
+from Tkinter_helper import CustomText, custom_paste
+
 
 
 
@@ -118,8 +120,6 @@ class Application(tk.Frame):
         self.token_usage.set(0)
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
         self.dollars.set(0.0)
-        # tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.W)
-        # tk.Label(self.master, textvariable = self.dollars).grid(row=1, column=2 , sticky=tk.W)
 
     def save_api_key(self):
         api_key = self.apikey.get()
@@ -160,21 +160,25 @@ class Application(tk.Frame):
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
         question = self.question.get()  # get the question from the entry box
+
+        #HANDLE THE PAPER
         url = self.url.get()  # get the url from the entry box
-
         tex_files = functions.getPaper(url)  # get the paper from arxiv
-        print('tex_files:', tex_files)
-        self.papertitle.set(functions.getTitleOfthePaper(url))  # set the title of the paper label from the url
-
+        print('tex_files found:', tex_files)
+        complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
+        header = functions.getTitleOfthePaper(url) #get the title of the paper
+        self.papertitle.set(header)  # set the papertitle label
+        
+        #HANDLE THE KEYWORDS
         keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box in lower case        
         if keywords == '':  # if the keywords are not provided, promt GPT to generate them from the question
             keywords = self.search_keywords()
-
         print('Keywords to use:', keywords)
-        # get list_of_phrases from the text
+
+        # Get list_of_phrases from the text
         list_of_phrases = []
         number_of_phrases = 0
-        complete_text = functions.extract_all_text(tex_files)
+        
         for keyword in keywords.split(','):  # loop through the keywords
             phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), complete_text, api_key, number_of_phrases)
             
@@ -183,6 +187,7 @@ class Application(tk.Frame):
                 number_of_phrases = len(list_of_phrases)
                 print('For keyword \'' + keyword + '\' the phrase found are:', len(phrase))
             else:
+                # try lower case TODO: Improve lower/upper/plural/singular handling all in once
                 lowercase_keyword = keyword.strip().lower()
                 if lowercase_keyword != keyword.strip():
                     phrase_lower, stop, number_of_phrases = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
@@ -193,25 +198,25 @@ class Application(tk.Frame):
                     print('For keyword \'' + keyword + '\' no phrase found')
             if stop:
                 break  # if the stop flag is set, break the loop
-        # relevance, tokens = promptText_relevance(question, sentence, api_key)
-
-
-
-        
-
-
+      
         # print('Phrases (',len(list_of_phrases),')',list_of_phrases)
+
+        # Initialize the textbox to receive the generated text
         self.textbox.config(state=tk.NORMAL)
         self.textbox.delete(1.0, tk.END)
-        if len(list_of_phrases) > 0:
+
+        if len(list_of_phrases) > 0: #if there are phrases!
             
             #print('list_of_phrases',list_of_phrases)
+            #CHECK if the user wants to use the check for relevance of each phrase,
+            # otherwise it will just order phrases by most common according to keywords appearance
+            # and limit the number to PHRASES_TO_USE (defined in functions.py)
             if self.boolean2.get() == 1: 
                 askGPT3 = True
             else:
                 askGPT3 = False
             clean_list_of_phrases, tokens, model = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
-            self.update_token_usage(tokens, model)
+            self.update_token_usage(tokens, model) #update the token usage
             
             just_phrases = []
             phrase_with_frequency = []
@@ -221,20 +226,22 @@ class Application(tk.Frame):
 
             #substitue in the phrases the \cite with the hyperlink to arxiv
             phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, complete_text)
-            # apply the tag "red" 
+
             
             # show the phrases in the output box
             self.textbox2.config(state=tk.NORMAL)
             self.textbox2.delete('1.0', tk.END)  # clear the output box
             self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
             self.textbox2.config(state=tk.DISABLED)
+            # apply the tag "blue" 
             for link in all_hyperlinks:
                 self.textbox2.highlight_pattern(link, "blue")
             
-            header = functions.getTitleOfthePaper(url)
+            
+            # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), header, api_key)
-                self.update_token_usage(tokens, model)
+                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), header, api_key) #ask GPT-3 to give the answer
+                self.update_token_usage(tokens, model) #update the token usage
                 self.textbox.insert(tk.END, result)  # insert the answer in the output box
             except Exception as e:
                 self.textbox.insert(tk.END, 'Error: ' + str(e))
@@ -250,7 +257,7 @@ root = tk.Tk()
 root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
 root.geometry("1000x800")
 root.columnconfigure(3)
-root.bind_class("Entry", "<<Paste>>", functions.custom_paste)
+root.bind_class("Entry", "<<Paste>>", custom_paste)
 root.grid_columnconfigure(0, weight=1)
 root.grid_columnconfigure(1, weight=1)
 root.grid_columnconfigure(2, weight=1)
