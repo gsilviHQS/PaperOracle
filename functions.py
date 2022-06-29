@@ -1,4 +1,4 @@
-from lib2to3.pgen2 import token
+import itertools
 import openai
 # import wget
 # import pathlib
@@ -99,19 +99,6 @@ def find_prev(string, pos, list_of_substrings):
 
 
 
-# def find_next(s, pos, c):
-#     i = s.find(c, pos + 1)  # find the next occurrence of c after pos
-#     if i == -1:
-#         return None
-#     return i
-
-
-# def find_prev(s, pos, c):
-#     i = s.rfind(c, 0, pos)  # find the previous occurrence of c before pos
-#     if i == -1:
-#         return None
-#     return i
-
 
 def extract_phrases(keyword, text, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
@@ -209,25 +196,26 @@ def check_relevance(list_of_phrases, question, api_key, askGPT=True):
             phrases_with_relevance.append(phrase)
     return phrases_with_relevance, total_tokens, model
 
-def promptcleanLatex(phrases, api_key):
-    """ Loop over phrases and prompt them to gpt to remove \cite() """
-    clean_phrases = []
-    openai.api_key = api_key
+def get_hyperlink(phrases, full_text):
+    """Find arxiv hyperlinks in the. Bibitem"""
+    newphrases = []
+    all_hyperlinks = []
     for phrase in phrases:
-        if "\cite" in phrase:
-            response = openai.Completion.create(
-                model="text-babbage-001",
-                prompt="Remove latex citations, e.g. \\cite:\nInput: We use the VQE algorithm with the unitary coupled-clusters (UCC) ansatz~\\cite{Bartlett:1989, Taube:2006, Peruzzo:2014, OMalley:2016,   Hempel:2018} to find the ground state in the active space reduced to two qubits.\n\n \
-                Output:  We use the VQE algorithm with the unitary coupled-clusters (UCC) ansatz~ to find the ground state in the active space reduced to two qubits.\n\nInput:  \n"+phrase + " \n\nOutput:  \n",
-                temperature=0.0,
-                max_tokens=1048,
-                top_p=1,
-                frequency_penalty=0,
-                presence_penalty=0
-            )
-            phrase = response['choices'][0]['text']
-        clean_phrases.append(phrase)
-    return clean_phrases, response['usage']['total_tokens']
+        citations = list(itertools.chain(*[ele.split(',') for ele in re.findall(pattern=r'\\cite{(.*?)}', string=phrase)])) # list of citations inside all \cite{}
+        for cit in citations:
+            res = re.search(pattern='\]\{'+cit+'\}(.*?)BibitemShut', string=r"{}".format(full_text), flags=re.DOTALL) # find the bibitem for the citation
+            if res is not None: 
+                link = re.search(pattern='{https://arxiv.org(.*?)}', string=res.group(1), flags=re.DOTALL)
+                if link is not None:
+                    hyperlink = link.group()[1:-1]
+                    all_hyperlinks.append(hyperlink)
+                    phrase = phrase.replace(cit, hyperlink)
+
+        newphrases.append(phrase)
+    return newphrases, all_hyperlinks
+
+
+#GPT-3 functions 
 
 def promptText_relevance(question, phrase, api_key):
     """ Prompt the question to gpt and return the keywords """
@@ -289,7 +277,7 @@ def promptText_question(question, inputtext, header, api_key):
     prompt = header +\
         "\n\n Phrases:\n" +\
         inputtext +\
-        "\n\n Prompt:From the Phrases above, give an answer to the question: " +\
+        "\n\n Prompt:From the Phrases above, provide a detailed answer to the question: " +\
         question + "\n If you are not sure say 'I am not sure but I think' and then try to answer:'\n"
 
     print('INPUT:\n', prompt)
@@ -306,7 +294,44 @@ def promptText_question(question, inputtext, header, api_key):
     print('\nOUTPUT:', response['choices'][0]['text'])
     return response['choices'][0]['text'] , response['usage']['total_tokens'], response['model']
 
+
+
+
+
+#UTILITIES for INTERFACE
+
+def custom_paste(event):
+        try:
+            event.widget.delete("sel.first", "sel.last")
+        except:
+            pass
+        event.widget.insert("insert", event.widget.clipboard_get())
+        return "break"
+
+
+
+
 # OBSOLETE FUNCTIONS
+
+def promptcleanLatex(phrases, api_key):
+    """ Loop over phrases and prompt them to gpt to remove \cite() """
+    clean_phrases = []
+    openai.api_key = api_key
+    for phrase in phrases:
+        if "\cite" in phrase:
+            response = openai.Completion.create(
+                model="text-babbage-001",
+                prompt="Remove latex citations, e.g. \\cite:\nInput: We use the VQE algorithm with the unitary coupled-clusters (UCC) ansatz~\\cite{Bartlett:1989, Taube:2006, Peruzzo:2014, OMalley:2016,   Hempel:2018} to find the ground state in the active space reduced to two qubits.\n\n \
+                Output:  We use the VQE algorithm with the unitary coupled-clusters (UCC) ansatz~ to find the ground state in the active space reduced to two qubits.\n\nInput:  \n"+phrase + " \n\nOutput:  \n",
+                temperature=0.0,
+                max_tokens=1048,
+                top_p=1,
+                frequency_penalty=0,
+                presence_penalty=0
+            )
+            phrase = response['choices'][0]['text']
+        clean_phrases.append(phrase)
+    return clean_phrases, response['usage']['total_tokens']
 
 
 def get_sections(texfile):
@@ -336,12 +361,15 @@ def extract_section_and_subsections(keywords, texfile):
 
 
 
-#UTILITIES for INTERFACE
+# def find_next(s, pos, c):
+#     i = s.find(c, pos + 1)  # find the next occurrence of c after pos
+#     if i == -1:
+#         return None
+#     return i
 
-def custom_paste(event):
-        try:
-            event.widget.delete("sel.first", "sel.last")
-        except:
-            pass
-        event.widget.insert("insert", event.widget.clipboard_get())
-        return "break"
+
+# def find_prev(s, pos, c):
+#     i = s.rfind(c, 0, pos)  # find the previous occurrence of c before pos
+#     if i == -1:
+#         return None
+#     return i

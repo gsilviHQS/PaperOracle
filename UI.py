@@ -2,7 +2,11 @@
 import tkinter as tk 
 
 import functions
+from Tkinter_helper import CustomText
 import os
+
+
+
 
 default_url = 'https://arxiv.org/abs/2201.08194v1'
 default_question = 'What is the weak barren plateau condition?'
@@ -74,7 +78,7 @@ class Application(tk.Frame):
                             )
         
         # new textbox for the phrases matching the question
-        self.textbox2 = tk.Text(self.master, height=20, width=90)
+        self.textbox2 = CustomText(self.master, height=20, width=90)
         self.textbox2.grid(row=7, column=1, columnspan=2)
         self.textbox2.insert(tk.END, "Phrases")
         self.textbox2.config(state=tk.DISABLED,
@@ -83,6 +87,11 @@ class Application(tk.Frame):
                              font=("Helvetica", 11),
                              borderwidth=2,
                              )
+
+        # configuring a tag with a certain style (font color)
+        self.textbox2.tag_configure("blue", foreground="blue")
+
+
 
         #add button next to token usage to reset the valuef of token usage and dollars usage
         tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.E)                     
@@ -210,11 +219,18 @@ class Application(tk.Frame):
                 just_phrases.append(phrase[0])
                 phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
 
+            #substitue in the phrases the \cite with the hyperlink to arxiv
+            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, complete_text)
+            # apply the tag "red" 
+            
             # show the phrases in the output box
             self.textbox2.config(state=tk.NORMAL)
             self.textbox2.delete('1.0', tk.END)  # clear the output box
             self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
             self.textbox2.config(state=tk.DISABLED)
+            for link in all_hyperlinks:
+                self.textbox2.highlight_pattern(link, "blue")
+            
             header = functions.getTitleOfthePaper(url)
             try:
                 result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), header, api_key)
