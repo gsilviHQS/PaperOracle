@@ -201,20 +201,35 @@ def get_hyperlink(phrases, full_text):
     newphrases = []
     all_hyperlinks = []
     for phrase in phrases:
-        citations = list(itertools.chain(*[ele.split(',') for ele in re.findall(pattern=r'\\cite{(.*?)}', string=phrase)])) # list of citations inside all \cite{}
+        citations = list(itertools.chain(*[ele.split(',') for ele in re.findall(pattern=r'\\cite{(.*?)}', string=phrase)])) # list of citations inside \cite{} for a give phrase
         for cit in citations:
-            res = re.search(pattern='\]\{'+cit+'\}(.*?)BibitemShut', string=r"{}".format(full_text), flags=re.DOTALL) # find the bibitem for the citation
-            if res is not None: 
-                link = re.search(pattern='{https://arxiv.org(.*?)}', string=res.group(1), flags=re.DOTALL)
-                if link is not None:
-                    hyperlink = link.group()[1:-1]
-                    all_hyperlinks.append(hyperlink)
-                    phrase = phrase.replace(cit, hyperlink)
-
+            hyperlink = link_patter_finder(cit, full_text) # find the arXiv hyperlink for a given citation
+            if hyperlink is not None:
+                all_hyperlinks.append(hyperlink)
+                phrase = phrase.replace(cit, hyperlink)
         newphrases.append(phrase)
     return newphrases, all_hyperlinks
 
-
+def link_patter_finder(cit, text):
+    """Find the bibitem pattern for the citation"""
+    raw_text = r"{}".format(text)
+    # List of possible bibitem patterns, this may need to be updated if the bibitem is not in the text
+    patterns = [('\]\{'+cit+'\}(.*?)BibitemShut', re.DOTALL,'{https://arxiv.org/abs/(.*?)}'),
+                ('bibitem\{'+cit+'\}(.*)', 0, 'arXiv:(....\......)')
+                ]
+    hyperlink = None
+    # Loop over the patterns and find the bibitem pattern, once it is found, return the hyperlink
+    for pattern in patterns:
+        res = re.search(pattern[0], raw_text, flags=pattern[1])
+        if res is not None:
+            # print('Match:',res)
+            link = re.search(pattern[2], res.group(1), flags=pattern[1])
+            if link is not None:
+                # print('Link',link.group(1))
+                hyperlink = 'https://arxiv.org/abs/'+link.group(1)
+                break
+    return hyperlink
+    
 #GPT-3 functions 
 
 def promptText_relevance(question, phrase, api_key):

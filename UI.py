@@ -9,7 +9,7 @@ import os
 
 
 default_url = 'https://arxiv.org/abs/2201.08194v1'
-default_question = 'What is the weak barren plateau condition?'
+default_question = 'what are noisy intermediate-scale quantum devices?'
 
 
 class Application(tk.Frame):
@@ -205,7 +205,7 @@ class Application(tk.Frame):
         self.textbox.delete(1.0, tk.END)
         if len(list_of_phrases) > 0:
             
-            print('list_of_phrases',list_of_phrases)
+            #print('list_of_phrases',list_of_phrases)
             if self.boolean2.get() == 1: 
                 askGPT3 = True
             else:
