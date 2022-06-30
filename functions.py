@@ -11,18 +11,18 @@ from bs4 import BeautifulSoup
 from collections import Counter
 
 MAX_LENGHT_PHRASE = 2000
-MAX_NUMBER_OF_PHRASES = 100
-PHRASES_TO_USE = 10
-
+MAX_PHRASES_TO_SEARCH = 100
+MAX_PHRASES_TO_USE = 5
+MAX_DISTANCE_BETWEEN_PHRASES = 3
 
 def remove_duplicates(list_of_phrases):
     """ Remove duplicates from a list """
     seen = set()
     clean_list_of_phrases = []
-    for item in list_of_phrases:
+    for item,start,end in list_of_phrases:
         if item not in seen:
             seen.add(item)
-            clean_list_of_phrases.append(item)
+            clean_list_of_phrases.append((item,start,end))
     return clean_list_of_phrases
 
 
@@ -102,7 +102,7 @@ def find_prev(string, pos, list_of_substrings):
 
 def extract_phrases(keyword, text, api_key, number_of_phrases):
     """ Extract the phrases that match the keyword from the text """
-    max_number_of_phrases = MAX_NUMBER_OF_PHRASES
+    max_number_of_phrases = MAX_PHRASES_TO_SEARCH
     max_lenght_phrases = MAX_LENGHT_PHRASE
     searchstart = True
     if '\\'in keyword:
@@ -149,19 +149,19 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         end = find_next(text, position, delimiter_end)
         if end is None:
             continue
-        sentence = text[start + 1:end].replace('\n', ' ')
+        sentence = text[start + 1:end + 1].replace('\n', ' ')
         keyword_filter = ['section','%' , 'bibname'] # keywords that should not be included in the phrases
         if searchstart and  any(x in sentence for x in keyword_filter) : continue
 
         # TODO: find a smarter way to do this below
         if len(sentence) >= max_lenght_phrases:
-            print('A sentence is too long:', sentence)
+            print('A sentence is too long, lenght=', len(sentence))
         elif number_of_phrases >= max_number_of_phrases:
             stop_signal = True
             print('Enought sentences added:', len(phrases),' out of  ',len(positions),' sentences found')
             return phrases, stop_signal, number_of_phrases
         else:
-            phrases.append(sentence)
+            phrases.append((sentence, start, end))
             number_of_phrases += 1
             
     phrases = remove_duplicates(phrases)  # remove duplicate phrases from the list
@@ -170,15 +170,29 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
  
     return phrases, stop_signal, number_of_phrases  # return the phrases and the stop signal triggered by the number of phrases
 
+def connect_adjacent_phrases(list_of_phrases):
+    """ Connect the adjacent phrases """
+    phrases = []
+    for i in range(len(list_of_phrases)):
+        if i == 0:
+            phrases.append(list_of_phrases[i])
+        else:
+            if abs(list_of_phrases[i][1] - list_of_phrases[i-1][2]) <= MAX_DISTANCE_BETWEEN_PHRASES:
+                phrases[-1] = (phrases[-1][0] + ' ' + list_of_phrases[i][0], phrases[-1][1], list_of_phrases[i][2])
+                phrases.append(phrases[-1])
+            else:
+                phrases.append(list_of_phrases[i])
+    return [ele[0] for ele in phrases] # lose track of positions
+
 def check_relevance(list_of_phrases, question, api_key, askGPT=True):
     """ Check the relevance of the phrases to the question """
-
-    phrases_with_relevance = []
-
-    clean_list_of_phrases = Counter(list_of_phrases).most_common()  # order phrases by most common
     total_tokens = 0
     model = None
-    for phrase in clean_list_of_phrases[0:PHRASES_TO_USE]:
+    phrases_with_relevance = []
+
+    most_common_phrases = Counter(list_of_phrases).most_common(MAX_PHRASES_TO_USE)  # order phrases by most common
+    
+    for phrase in most_common_phrases:
         if askGPT:
             result, tokens, model = promptText_relevance(question, phrase[0], api_key)
             total_tokens += tokens
@@ -222,7 +236,7 @@ def link_patter_finder(cit, text):
                 break
     return hyperlink
     
-#GPT-3 functions 
+########### GPT-3 functions #######################
 
 def promptText_relevance(question, phrase, api_key):
     """ Prompt the question to gpt and return the keywords """

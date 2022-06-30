@@ -185,17 +185,18 @@ class Application(tk.Frame):
             if phrase is not None:
                 list_of_phrases.extend(phrase)
                 number_of_phrases = len(list_of_phrases)
-                print('For keyword \'' + keyword + '\' the phrase found are:', len(phrase))
+                print('For keyword \'' + keyword + '\' the phrases found are:', len(phrase))
             else:
-                # try lower case TODO: Improve lower/upper/plural/singular handling all in once
-                lowercase_keyword = keyword.strip().lower()
-                if lowercase_keyword != keyword.strip():
-                    phrase_lower, stop, number_of_phrases = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
-                    if phrase_lower is not None:
-                        list_of_phrases.append(".\n".join(phrase_lower))
-                        print('For keyword \'' + lowercase_keyword + '\' the phrase found are:', phrase_lower)
-                else:
-                    print('For keyword \'' + keyword + '\' no phrase found')
+                print('For keyword \'' + keyword + '\' no phrase found')
+                # # try lower case TODO: Improve lower/upper/plural/singular handling all in once
+                # lowercase_keyword = keyword.strip().lower()
+                # if lowercase_keyword != keyword.strip():
+                #     phrase_lower, stop, number_of_phrases = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
+                #     if phrase_lower is not None:
+                #         list_of_phrases.extend(phrase_lower)
+                #         print('For keyword \'' + lowercase_keyword + '\' the phrase found are:', phrase_lower)
+                # else:
+                    
             if stop:
                 break  # if the stop flag is set, break the loop
       
@@ -215,6 +216,7 @@ class Application(tk.Frame):
                 askGPT3 = True
             else:
                 askGPT3 = False
+            list_of_phrases = functions.connect_adjacent_phrases(list_of_phrases) 
             clean_list_of_phrases, tokens, model = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
             self.update_token_usage(tokens, model) #update the token usage
             
