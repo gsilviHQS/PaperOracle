@@ -4,14 +4,12 @@ import os
 
 #MY FUNCTIONS
 import functions
-from Tkinter_helper import CustomText, custom_paste
+from Tkinter_helper import CustomText, custom_paste, HyperlinkManager
 
 
-
-
-
+# default url and question to start from, as an example
 default_url = 'https://arxiv.org/abs/2201.08194v1'
-default_question = 'what are noisy intermediate-scale quantum devices?'
+default_question = 'What are noisy intermediate-scale quantum devices?'
 
 
 class Application(tk.Frame):
@@ -41,7 +39,7 @@ class Application(tk.Frame):
         self.papertitle = tk.StringVar()
         self.papertitle.set('\n')
         tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=2, column=1)
-
+        
         self.apikey = tk.Entry(self.master, width=30)
 
         # if api.txt exist then insert the content of api.txt into apikey entry else insert default value
@@ -59,6 +57,7 @@ class Application(tk.Frame):
         self.url.insert(0, default_url)
         self.question = tk.Entry(self.master, width=50)
         self.question.insert(0, default_question)
+        self.question.focus()
 
         self.apikey.grid(row=0, column=1)
         self.url.grid(row=1, column=1)
@@ -89,10 +88,6 @@ class Application(tk.Frame):
                              font=("Helvetica", 11),
                              borderwidth=2,
                              )
-
-        # configuring a tag with a certain style (font color)
-        self.textbox2.tag_configure("blue", foreground="blue")
-
 
 
         #add button next to token usage to reset the valuef of token usage and dollars usage
@@ -168,6 +163,9 @@ class Application(tk.Frame):
         complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
         header = functions.getTitleOfthePaper(url) #get the title of the paper
         self.papertitle.set(header)  # set the papertitle label
+        #TODO: apply the hyperlinks to the papertitle label, first change to a custom textbox
+
+
         
         #HANDLE THE KEYWORDS
         keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box in lower case        
@@ -189,13 +187,6 @@ class Application(tk.Frame):
             else:
                 print('For keyword \'' + keyword + '\' no phrase found')
                 # # try lower case TODO: Improve lower/upper/plural/singular handling all in once
-                # lowercase_keyword = keyword.strip().lower()
-                # if lowercase_keyword != keyword.strip():
-                #     phrase_lower, stop, number_of_phrases = functions.extract_phrases(lowercase_keyword, complete_text, api_key, number_of_phrases)  # try lower case
-                #     if phrase_lower is not None:
-                #         list_of_phrases.extend(phrase_lower)
-                #         print('For keyword \'' + lowercase_keyword + '\' the phrase found are:', phrase_lower)
-                # else:
                     
             if stop:
                 break  # if the stop flag is set, break the loop
@@ -209,7 +200,7 @@ class Application(tk.Frame):
         if len(list_of_phrases) > 0: #if there are phrases!
             
             #print('list_of_phrases',list_of_phrases)
-            #CHECK if the user wants to use the check for relevance of each phrase,
+            # Here the code check if the user wants to use the check for relevance of each phrase,
             # otherwise it will just order phrases by most common according to keywords appearance
             # and limit the number to PHRASES_TO_USE (defined in functions.py)
             if self.boolean2.get() == 1: 
@@ -234,11 +225,12 @@ class Application(tk.Frame):
             self.textbox2.config(state=tk.NORMAL)
             self.textbox2.delete('1.0', tk.END)  # clear the output box
             self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
-            self.textbox2.config(state=tk.DISABLED)
-            # apply the tag "blue" 
-            for link in all_hyperlinks:
-                self.textbox2.highlight_pattern(link, "blue")
             
+            # apply the hyperlinks to the phrases
+            hyperlink = HyperlinkManager(self.textbox2, self.url)
+            for link in all_hyperlinks:
+                self.textbox2.highlight_pattern(link,hyperlink)
+            self.textbox2.config(state=tk.DISABLED)
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:

@@ -17,6 +17,8 @@ You can either ask the engine to search for keywords based on the question promp
 These will be searched for in the paper`s tex file and the matching phrases used to inquire the question to the GPT3 engine.
 An estimate of the cost incurred is provided, alongside the counts of token usage.
 
+If arXiv link are found within the citations of the reported phrases, they will be clickable hyperlink, a right click will copy them into the url box
+
 
 Example:
 ![plot](./example3.png)

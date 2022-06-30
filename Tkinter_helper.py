@@ -1,5 +1,6 @@
-import tkinter as tk 
-
+import tkinter as tk
+import webbrowser 
+from functools import partial
 
 #UTILITIES for INTERFACE
 
@@ -13,22 +14,13 @@ def custom_paste(event):
 
 class CustomText(tk.Text):
     '''A text widget with a new method, highlight_pattern()
-
-    example:
-
-    text = CustomText()
-    text.tag_configure("red", foreground="#ff0000")
-    text.highlight_pattern("this should be red", "red")
-
-    The highlight_pattern method is a simplified python
-    version of the tcl code at http://wiki.tcl.tk/3246
     '''
     def __init__(self, *args, **kwargs):
         tk.Text.__init__(self, *args, **kwargs)
 
-    def highlight_pattern(self, pattern, tag, start="1.0", end="end",
+    def highlight_pattern(self, pattern, hyperlink, start="1.0", end="end",
                           regexp=False):
-        '''Apply the given tag to all text that matches the given pattern
+        '''Apply the hyperlink to all text that matches the given pattern
 
         If 'regexp' is set to True, pattern will be treated as a regular
         expression according to Tcl's regular expression syntax.
@@ -43,9 +35,58 @@ class CustomText(tk.Text):
         count = tk.IntVar()
         while True:
             index = self.search(pattern, "matchEnd","searchLimit",
-                                count=count, regexp=regexp)
+                                count=count, regexp=regexp) 
             if index == "": break
             if count.get() == 0: break # degenerate pattern which matches zero-length strings
             self.mark_set("matchStart", index)
             self.mark_set("matchEnd", "%s+%sc" % (index, count.get()))
-            self.tag_add(tag, "matchStart", "matchEnd")
+            #self.tag_add(tag, "matchStart", "matchEnd")
+            self.replace("matchStart", "matchEnd",pattern, hyperlink.add(pattern))
+            
+
+class HyperlinkManager:
+
+    def __init__(self, text, urlbox):
+
+        self.text = text
+        self.urlbox = urlbox
+        self.text.tag_config("hyper", foreground="blue", underline=1) #hyperlink color
+
+        self.text.tag_bind("hyper", "<Enter>", self._enter) #mouse over hyperlink
+        self.text.tag_bind("hyper", "<Leave>", self._leave) #mouse leave hyperlink
+        self.text.tag_bind("hyper", "<Button-1>", self._click) #click hyperlink
+        self.text.tag_bind("hyper", "<Button-3>", self._copy_in_urlbox) #click hyperlink
+
+        self.reset()
+
+    def reset(self):
+        self.links = {}
+        self.urls = {}
+
+    def add(self, pattern):
+        # add an action to the manager.  returns tags to use in
+        # associated text widget
+        tag = "hyper-%d" % len(self.links) # use len(links) to get a unique number
+        self.links[tag] = partial(webbrowser.open, pattern)
+        self.urls[tag] = pattern
+        return "hyper", tag
+
+    def _enter(self, event):
+        self.text.config(cursor="hand1") # this show a hand cursor when the mouse is over a hyperlink
+
+    def _leave(self, event):
+        self.text.config(cursor="") # this reset cursor when leave
+
+    def _click(self, event): 
+        for tag in self.text.tag_names(tk.CURRENT):
+            if tag[:6] == "hyper-":
+                self.links[tag]() # call associated action, opening the hyperlink
+                return
+    def _copy_in_urlbox(self, event):
+        for tag in self.text.tag_names(tk.CURRENT):
+            if tag[:6] == "hyper-":
+                self.urlbox.delete(0 , tk.END)  # clear the output box
+                self.urlbox.insert(0, self.urls[tag]) # insert the hyperlink in the output box
+                self.urlbox.config(background="green") # change the background color of the output box
+                self.urlbox.after(200, lambda: self.urlbox.config(background="white")) # reset the background color after 200ms
+                return
