@@ -2,6 +2,8 @@
 import tkinter as tk 
 import os
 
+from pyparsing import col
+
 #MY FUNCTIONS
 import functions
 from Tkinter_helper import CustomText, custom_paste, HyperlinkManager
@@ -16,32 +18,49 @@ class Application(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.master = master
+        self.last_url = ''
         self.create_widgets()
 
     def create_widgets(self):
-        tk.Label(self.master, text="API Key").grid(row=0)
+        # variables
         self.dollars = tk.DoubleVar()
         self.dollars.set(0.0)
         self.token_usage = tk.IntVar()
         self.token_usage.set(0)
         self.token_label = tk.StringVar()
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
-        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.E)
-        tk.Label(self.master, text="arXiv URL").grid(row=1)
-        tk.Label(self.master, text="Paper title").grid(row=2)
-        tk.Label(self.master, text="Question").grid(row=3)
-        tk.Label(self.master, text="Keywords to search\n(separated by comma)").grid(row=5)
 
-     
-        tk.Label(self.master, text="Answer from GPT-3").grid(row=6)
-        tk.Label(self.master, text="Matching Phrases \n in tex files").grid(row=7)
-
+        # Column 0 widgets
+        tk.Label(self.master, text="API Key").grid(row=0, column=0)
+        self.apikey = tk.Entry(self.master, width=30)
+        self.apikey.grid(row=1, column=0)
+        tk.Label(self.master, text="arXiv URL").grid(row=2, column=0)
+        self.url = tk.Entry(self.master, width=50)
+        self.url.grid(row=3, column=0)
+        # tk.Label(self.master, text="Paper title").grid(row=4, column=0)
         self.papertitle = tk.StringVar()
         self.papertitle.set('\n')
-        tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=2, column=1)
+        tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=0)
+       
+        self.sections = tk.Text(self.master, wrap=tk.WORD, width=70, height=50)
+        self.sections.grid(row=6, column=0, rowspan=3)
         
-        self.apikey = tk.Entry(self.master, width=30)
+        
+        #Column 1 widgets
+        tk.Label(self.master, text="Question").grid(row=0,column=1, columnspan=2)
+        self.question = tk.Entry(self.master, width=70)
+        self.question.grid(row=1, column=1, columnspan=2)
 
+        tk.Label(self.master, text="Keywords to search (separated by comma)").grid(row=2, column=1, columnspan=2)
+        self.keybox = tk.Text(self.master, width=70, height=1)
+        self.keybox.grid(row=3, column=1, columnspan=2)
+        tk.Label(self.master, text="Answer from GPT-3").grid(row=5, column=1, columnspan=2)
+        tk.Label(self.master, text="Matching Phrases in tex files").grid(row=7, column=1, columnspan=2)
+
+        #Column 2 widgets
+        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.E)
+        
+        #Set defaults values
         # if api.txt exist then insert the content of api.txt into apikey entry else insert default value
         if os.path.isfile('API.txt'):
             with open('API.txt', 'r') as f:
@@ -50,22 +69,11 @@ class Application(tk.Frame):
             self.apikey.insert(0, 'Your API Key here')
             #add button to save the api key
             tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.W)
-
-        
-        
-        self.url = tk.Entry(self.master, width=50)
         self.url.insert(0, default_url)
-        self.question = tk.Entry(self.master, width=50)
         self.question.insert(0, default_question)
         self.question.focus()
-
-        self.apikey.grid(row=0, column=1)
-        self.url.grid(row=1, column=1)
-        self.question.grid(row=3, column=1)
-
-        self.keybox = tk.Text(self.master, width=50, height=1)
-        self.keybox.grid(row=5, column=1)
-        # self.keybox.config(state=tk.DISABLED)
+        
+        
 
         # output box to display the result
         self.textbox = tk.Text(self.master, height=20, width=90)
@@ -80,7 +88,7 @@ class Application(tk.Frame):
         
         # new textbox for the phrases matching the question
         self.textbox2 = CustomText(self.master, height=20, width=90)
-        self.textbox2.grid(row=7, column=1, columnspan=2)
+        self.textbox2.grid(row=8, column=1, columnspan=2)
         self.textbox2.insert(tk.END, "Phrases")
         self.textbox2.config(state=tk.DISABLED,
                              background="white",
@@ -90,25 +98,30 @@ class Application(tk.Frame):
                              )
 
 
-        #add button next to token usage to reset the valuef of token usage and dollars usage
+        #BUTTONS
+        #button under url box named "Get paper"
+        tk.Button(self.master, text='Get paper', command=self.get_paper).grid(row=4, column=0)
+
         tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.E)                     
 
         tk.Button(self.master, text="Generate keywords from question", command=self.search_keywords).grid(row=4,
-                                                                                          column=1)
+                                                                                          column=1, columnspan=2)
 
         self.boolean2 = tk.IntVar()
         self.boolean2.set(0)
-        self.check_phrase = tk.Checkbutton(self.master, text="(Expensive)Check phrases for relevance", variable=self.boolean2).grid(row=8, 
-                                                                                                     column=2, 
-                                                                                                     sticky=tk.W)
+        self.check_phrase = tk.Checkbutton(self.master, text="(Expensive)Check phrases for relevance", variable=self.boolean2).grid(row=9, 
+                                                                                                     column=1, 
+                                                                                                     sticky=tk.E)
         
 
-        tk.Button(self.master, text='Run', command=self.run).grid(row=8,
+        tk.Button(self.master, text='Run', command=self.run).grid(row=10,
                                                                   column=1,
-                                                                  pady=4)
-        tk.Button(self.master, text='Quit', command=self.quit).grid(row=9,
-                                                                    column=1,
-                                                                    pady=4)
+                                                                  pady=4,
+                                                                  sticky=tk.E)
+        tk.Button(self.master, text='Quit', command=self.quit).grid(row=10,
+                                                                    column=2,
+                                                                    pady=4,
+                                                                    sticky=tk.W)
 
 
     def reset_token_usage(self):
@@ -139,6 +152,23 @@ class Application(tk.Frame):
 
         self.token_label.set('Usage: '+str(total_token_used)+' tokens ($'+"{:3.5f}".format(total_dollars_used)+')') #update the token usage label
 
+    def get_paper(self):
+        """ Get the paper from the url """
+        url = self.url.get()  # get the url from the entry box
+        tex_files = functions.getPaper(url)  # get the paper from arxiv
+        print('tex_files found:', tex_files)
+        self.complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
+        header = functions.getTitleOfthePaper(url) #get the title of the paper
+        self.papertitle.set(header)  # set the papertitle label
+        self.last_url = url  # save the last url
+        #find section and subsection of the paper
+        list_of_section = functions.get_sections(tex_files)
+        print(list_of_section)
+        self.sections.delete(1.0, tk.END)
+        for i in list_of_section:
+            self.sections.insert(tk.END, i)
+        
+        
 
     def search_keywords(self):
         api_key = self.apikey.get()
@@ -158,29 +188,22 @@ class Application(tk.Frame):
         api_key = self.apikey.get()  # get the api key from the entry box
         question = self.question.get()  # get the question from the entry box
 
-        #HANDLE THE PAPER
-        url = self.url.get()  # get the url from the entry box
-        tex_files = functions.getPaper(url)  # get the paper from arxiv
-        print('tex_files found:', tex_files)
-        complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
-        header = functions.getTitleOfthePaper(url) #get the title of the paper
-        self.papertitle.set(header)  # set the papertitle label
+        if self.last_url != self.url.get():  # if the url has changed
+            self.get_paper()  # download the paper
         #TODO: apply the hyperlinks to the papertitle label, first change to a custom textbox
-
-
         
         #HANDLE THE KEYWORDS
-        keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box in lower case        
+        keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box        
         if keywords == '':  # if the keywords are not provided, promt GPT to generate them from the question
             keywords = self.search_keywords()
-        
+        print('Keywords in use:',keywords)
 
         # Get list_of_phrases from the text
         list_of_phrases = []
         number_of_phrases = 0
         
         for keyword in keywords.split(','):  # loop through the keywords
-            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), complete_text, api_key, number_of_phrases)
+            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), self.complete_text, api_key, number_of_phrases)
             
             if phrase is not None:
                 list_of_phrases.extend(phrase)
@@ -220,7 +243,7 @@ class Application(tk.Frame):
                 phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
 
             #substitue in the phrases the \cite with the hyperlink to arxiv
-            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, complete_text)
+            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, self.complete_text)
 
             
             # show the phrases in the output box
@@ -236,7 +259,7 @@ class Application(tk.Frame):
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), header, api_key) #ask GPT-3 to give the answer
+                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), self.papertitle.get(), api_key) #ask GPT-3 to give the answer
                 self.update_token_usage(tokens, model) #update the token usage
                 self.textbox.insert(tk.END, result)  # insert the answer in the output box
             except Exception as e:
@@ -251,7 +274,7 @@ class Application(tk.Frame):
 
 root = tk.Tk()
 root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
-root.geometry("1000x900")
+root.geometry("1500x800")
 root.columnconfigure(3)
 root.bind_class("Entry", "<<Paste>>", custom_paste)
 root.grid_columnconfigure(0, weight=1) 

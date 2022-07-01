@@ -12,8 +12,13 @@ from collections import Counter
 
 MAX_LENGHT_PHRASE = 2000
 MAX_PHRASES_TO_SEARCH = 100
-MAX_PHRASES_TO_USE = 5
+MAX_PHRASES_TO_USE = 7
 MAX_DISTANCE_BETWEEN_PHRASES = 3
+
+BEST_ENGINE = "text-davinci-002"
+MODERATE_ENGINE = "text-curie-001"
+SIMPLE_ENGINE = "text-babbage-001"
+WORST_ENGINE ="text-ada-001"
 
 def remove_duplicates(list_of_phrases):
     """ Remove duplicates from a list """
@@ -62,8 +67,6 @@ def getPaper(paper_url):
             if file.endswith(".tex"):
                 texfilename = os.path.join(subdir, file)
                 texfiles.append(texfilename)
-                print('Tex file found:', texfilename)
-    # TODO: handle multiple tex files
     return texfiles  # return the texfiles
 
 
@@ -122,14 +125,15 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
                      for m in re.finditer(r"\\begin{" + keyword, text)]
         searchstart = False
         delimiter_end = ['end{' + keyword + '}']
-    elif len([m.start() for m in re.finditer(r"\\section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword}
+    elif len([m.start() for m in re.finditer(r"section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword} or 
         print('keyword of latex-type \\section{' + keyword + '}')
-        positions = [m.start()
-                     for m in re.finditer(r"\\section{" + keyword, text)]
+        positions = [m.start()+5 # 5 is the length of 'ection', +1 later on
+                     for m in re.finditer(r"section{" + keyword, text)]
         searchstart = False
-        delimiter_end = '\\section' # or '\\subsection'
+        delimiter_end = ['\\section','\\subsection'] 
         max_lenght_phrases = 12000  # exception for the section keyword
         max_number_of_phrases = 1 # exception for the section keyword
+    
     else:
         print('normal type keyword:' + keyword)
         #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
@@ -150,7 +154,7 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         if end is None:
             continue
         sentence = text[start + 1:end + 1].replace('\n', ' ')
-        keyword_filter = ['section','%' , 'bibname'] # keywords that should not be included in the phrases
+        keyword_filter = ['%' , 'bibname'] # keywords that should not be included in the phrases
         if searchstart and  any(x in sentence for x in keyword_filter) : continue
 
         # TODO: find a smarter way to do this below
@@ -249,7 +253,7 @@ def promptText_relevance(question, phrase, api_key):
     # engine_list = openai.Engine.list() # calling the engines available from the openai api
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=BEST_ENGINE,
         prompt=prompt,
         temperature=0,
         max_tokens=3,
@@ -264,25 +268,24 @@ def promptText_relevance(question, phrase, api_key):
 
 def promptText_keywords(question, api_key):
     """ Prompt the question to gpt and return the keywords """
-    preshot = "Question:What is the aim of the VQE?\n\nExtract keywords from the question: \n aim, VQE \n\n"
-
-    
-    keywords_tag = "\n\nExtract many keywords from the question:\n\n Keywords:"
-    # prompt = preshot + "Question:"+ question + keywords_tag
-    prompt = "Question:"+ question + keywords_tag
+    preshot = "Question 1: What is the aim of the VQE?\nKeywords from question 1: \n Keywords:VQE, aim, purpose.\n\n"
+    preshot += "Question 2: What is a local Hamiltonian? Give an example\nKeywords from question 2: \n Keywords: local, Hamiltonian, example.\n\n"
+    keywords_tag = "\nKeywords from the question 3:\n Keywords:"
+    prompt = preshot + "Question:"+ question + keywords_tag
+    #prompt = "Question 3:"+ question + keywords_tag
     # openai.organization = 'Default'
     openai.api_key = api_key
     # engine_list = openai.Engine.list() # calling the engines available from the openai api
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=SIMPLE_ENGINE,
         prompt=prompt,
         temperature=0,
         max_tokens=340,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stop=["."]
+        stop=["\n","."]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
     return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
@@ -303,7 +306,7 @@ def promptText_question(question, inputtext, header, api_key):
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        engine=BEST_ENGINE,
         prompt=prompt,
         temperature=0.1,
         max_tokens=1000,
@@ -347,17 +350,23 @@ def promptcleanLatex(phrases, api_key):
     return clean_phrases, response['usage']['total_tokens']
 
 
-def get_sections(texfile):
+def get_sections(texfiles):
     """ Extract the sections from the tex file """
-    with open(texfile, 'r') as f:
-        lines = f.readlines()
+    for texfile in texfiles:
+        with open(texfile, 'r') as f:
+            lines = f.readlines()
     sections = []
     for line in lines:
+        #TODO: improve matching parenthesis in nested cases
         if line.startswith('\\section{'):
-            sections.append(line)
+            # extract the section name in between keywords \\section{ and }
+            section = line.split('section{')[1].split('}')[0]
+            
+            sections.append(section+'\n')
         elif line.startswith('\\subsection{'):
-            sections.append(line)
-            # sections.append(line.strip('\\section{').split("}", 1)[0])
+            # subsection = line.split('subsection{')[1].split('}')[0]
+            subsection = line.split('subsection{')[1].split('}')[0]
+            sections.append('\t'+subsection+'\n')
     return sections
 
 
