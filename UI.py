@@ -9,7 +9,7 @@ from Tkinter_helper import CustomText, custom_paste, HyperlinkManager
 
 # default url and question to start from, as an example
 default_url = 'https://arxiv.org/abs/2201.08194v1'
-default_question = 'What are noisy intermediate-scale quantum devices?'
+default_question = 'What are the steps to implement shadow tomography?'
 
 
 class Application(tk.Frame):
@@ -145,12 +145,14 @@ class Application(tk.Frame):
         question = self.question.get()
         keywords, tokens, model = functions.promptText_keywords(question, api_key)
         self.update_token_usage(tokens, model)
-       
+        keywords = keywords.strip().strip('\n') #remove the newline character from the keywords
         # show keywords in the output box
         self.keybox.config(state=tk.NORMAL)
-        self.keybox.delete('1.0', tk.END)  # clear the output box
-        self.keybox.insert(tk.END, keywords.strip('\n'))  # insert keywords in the keybox
-        return keywords.strip('\n')
+        # clear keybox
+        self.keybox.delete(1.0, tk.END)  # clear the output box
+        self.keybox.insert(tk.END, keywords)  # insert keywords in the keybox
+        print('Keywords to use:', repr(keywords))
+        return keywords
 
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
@@ -171,7 +173,7 @@ class Application(tk.Frame):
         keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box in lower case        
         if keywords == '':  # if the keywords are not provided, promt GPT to generate them from the question
             keywords = self.search_keywords()
-        print('Keywords to use:', keywords)
+        
 
         # Get list_of_phrases from the text
         list_of_phrases = []
@@ -249,10 +251,10 @@ class Application(tk.Frame):
 
 root = tk.Tk()
 root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
-root.geometry("1000x800")
+root.geometry("1000x900")
 root.columnconfigure(3)
 root.bind_class("Entry", "<<Paste>>", custom_paste)
-root.grid_columnconfigure(0, weight=1)
+root.grid_columnconfigure(0, weight=1) 
 root.grid_columnconfigure(1, weight=1)
 root.grid_columnconfigure(2, weight=1)
 app = Application(master=root)

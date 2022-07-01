@@ -282,7 +282,7 @@ def promptText_keywords(question, api_key):
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stop=["\n", "."]
+        stop=["."]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
     return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
