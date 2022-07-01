@@ -49,7 +49,7 @@ class HyperlinkManager:
     def __init__(self, text, urlbox):
 
         self.text = text
-        self.urlbox = urlbox
+        self.target_box = urlbox
         self.text.tag_config("hyper", foreground="blue", underline=1) #hyperlink color
 
         self.text.tag_bind("hyper", "<Enter>", self._enter) #mouse over hyperlink
@@ -85,8 +85,24 @@ class HyperlinkManager:
     def _copy_in_urlbox(self, event):
         for tag in self.text.tag_names(tk.CURRENT):
             if tag[:6] == "hyper-":
-                self.urlbox.delete(0 , tk.END)  # clear the output box
-                self.urlbox.insert(0, self.urls[tag]) # insert the hyperlink in the output box
-                self.urlbox.config(background="green") # change the background color of the output box
-                self.urlbox.after(200, lambda: self.urlbox.config(background="white")) # reset the background color after 200ms
+                self.target_box.delete(0, tk.END)  # CHECK which type is targetbox. if entry -, if custom box then is 1.0
+                self.target_box.insert(tk.END, self.urls[tag]) # insert the hyperlink in the output box
+                self.target_box.config(background="green") # change the background color of the output box
+                self.target_box.after(200, lambda: self.target_box.config(background="white")) # reset the background color after 200ms
                 return
+class Interlink(HyperlinkManager):
+      def add(self, pattern):
+        # add an action to the manager.  returns tags to use in
+        # associated text widget
+        tag = "hyper-%d" % len(self.links) # use len(links) to get a unique number
+        self.links[tag] = self._copy_in_keywords
+        self.urls[tag] = pattern
+        self.text.tag_bind("hyper", "<Button-3>", self._enter) #click hyperlink
+        return "hyper", tag
+      def _copy_in_keywords(self):
+        for tag in self.text.tag_names(tk.CURRENT):
+            if tag[:6] == "hyper-":
+                self.target_box.delete(1.0 , tk.END)
+                self.target_box.insert(tk.END, self.urls[tag].strip('\t'))
+                self.target_box.config(background="green")
+                self.target_box.after(200, lambda: self.target_box.config(background="white"))

@@ -20,15 +20,23 @@ MODERATE_ENGINE = "text-curie-001"
 SIMPLE_ENGINE = "text-babbage-001"
 WORST_ENGINE ="text-ada-001"
 
-def remove_duplicates(list_of_phrases):
+def remove_duplicates(list_of_phrases, simplecase=False):
     """ Remove duplicates from a list """
     seen = set()
     clean_list_of_phrases = []
-    for item,start,end in list_of_phrases:
-        if item not in seen:
-            seen.add(item)
-            clean_list_of_phrases.append((item,start,end))
+    if simplecase:
+        for item in list_of_phrases:
+            if item not in seen:
+                seen.add(item)
+                clean_list_of_phrases.append(item)
+    else:
+        for item,start,end in list_of_phrases:
+            if item not in seen:
+                seen.add(item)
+                clean_list_of_phrases.append((item,start,end))
     return clean_list_of_phrases
+
+
 
 
 def getTitleOfthePaper(paper_url):
@@ -100,7 +108,28 @@ def find_prev(string, pos, list_of_substrings):
     else:
         return max(positive_positions)
 
-
+def get_sections(texfiles):
+    """ Extract the sections from the tex file """
+    sections = []
+    for texfile in texfiles:
+        with open(texfile, 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            #TODO: improve matching parenthesis in nested cases
+            if line.startswith('\\section{'):
+                # extract the section name in between keywords \\section{ and }
+                section = line.split('section{')[1].split('}')[0]
+                
+                sections.append(section+'\n')
+            elif line.startswith('\\section*{'):
+                # extract the section name in between keywords \\section*{ and }
+                section = line.split('section*{')[1].split('}')[0]
+                sections.append(section+'\n')
+            elif line.startswith('\\subsection{'):
+                # subsection = line.split('subsection{')[1].split('}')[0]
+                subsection = line.split('subsection{')[1].split('}')[0]
+                sections.append('\t'+subsection+'\n')
+    return sections
 
 
 def extract_phrases(keyword, text, api_key, number_of_phrases):
@@ -125,7 +154,7 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
                      for m in re.finditer(r"\\begin{" + keyword, text)]
         searchstart = False
         delimiter_end = ['end{' + keyword + '}']
-    elif len([m.start() for m in re.finditer(r"section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword} or 
+    elif len([m.start() for m in re.finditer(r"section{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword} TODO: merge with one below
         print('keyword of latex-type \\section{' + keyword + '}')
         positions = [m.start()+5 # 5 is the length of 'ection', +1 later on
                      for m in re.finditer(r"section{" + keyword, text)]
@@ -133,7 +162,14 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
         delimiter_end = ['\\section','\\subsection'] 
         max_lenght_phrases = 12000  # exception for the section keyword
         max_number_of_phrases = 1 # exception for the section keyword
-    
+    elif len([m.start() for m in re.finditer(r"section\*{" + keyword, text)]) > 0:  # if the keyword of type \section{keyword} 
+        print('keyword of latex-type \\section{' + keyword + '}')
+        positions = [m.start()+6 # 5 is the length of 'ection', +1 later on
+                     for m in re.finditer(r"section\*{" + keyword, text)]
+        searchstart = False
+        delimiter_end = ['\\section','\\subsection'] 
+        max_lenght_phrases = 12000  # exception for the section keyword
+        max_number_of_phrases = 1 # exception for the section keyword
     else:
         print('normal type keyword:' + keyword)
         #positions = [m.start() for m in re.finditer(r'\b' + keyword, text)] #to have  space ahead of the keyword
@@ -269,7 +305,8 @@ def promptText_relevance(question, phrase, api_key):
 def promptText_keywords(question, api_key):
     """ Prompt the question to gpt and return the keywords """
     preshot = "Question 1: What is the aim of the VQE?\nKeywords from question 1: \n Keywords:VQE, aim, purpose.\n\n"
-    preshot += "Question 2: What is a local Hamiltonian? Give an example\nKeywords from question 2: \n Keywords: local, Hamiltonian, example.\n\n"
+    preshot += "Question 2: What is a local Hamiltonian? Give an example. \nKeywords from question 2: \n Keywords: local, Hamiltonian, example.\n\n"
+    preshot += "Question 2: What is a qubit? \nKeywords from question 2: \n Keywords: qubit.\n\n"
     keywords_tag = "\nKeywords from the question 3:\n Keywords:"
     prompt = preshot + "Question:"+ question + keywords_tag
     #prompt = "Question 3:"+ question + keywords_tag
@@ -350,24 +387,7 @@ def promptcleanLatex(phrases, api_key):
     return clean_phrases, response['usage']['total_tokens']
 
 
-def get_sections(texfiles):
-    """ Extract the sections from the tex file """
-    for texfile in texfiles:
-        with open(texfile, 'r') as f:
-            lines = f.readlines()
-    sections = []
-    for line in lines:
-        #TODO: improve matching parenthesis in nested cases
-        if line.startswith('\\section{'):
-            # extract the section name in between keywords \\section{ and }
-            section = line.split('section{')[1].split('}')[0]
-            
-            sections.append(section+'\n')
-        elif line.startswith('\\subsection{'):
-            # subsection = line.split('subsection{')[1].split('}')[0]
-            subsection = line.split('subsection{')[1].split('}')[0]
-            sections.append('\t'+subsection+'\n')
-    return sections
+
 
 
 def extract_section_and_subsections(keywords, texfile):

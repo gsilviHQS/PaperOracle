@@ -6,7 +6,7 @@ from pyparsing import col
 
 #MY FUNCTIONS
 import functions
-from Tkinter_helper import CustomText, custom_paste, HyperlinkManager
+from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink
 
 
 # default url and question to start from, as an example
@@ -42,7 +42,7 @@ class Application(tk.Frame):
         self.papertitle.set('\n')
         tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=0)
        
-        self.sections = tk.Text(self.master, wrap=tk.WORD, width=70, height=50)
+        self.sections = CustomText(self.master, wrap=tk.WORD, width=70, height=50)
         self.sections.grid(row=6, column=0, rowspan=3)
         
         
@@ -142,9 +142,13 @@ class Application(tk.Frame):
         self.token_usage.set(total_token_used) #update the token usage
 
         if model == 'text-davinci-002': #if the model is davinci
-            dollars = tokens * 0.00006
+            dollars = tokens * (0.06/1000)
+        elif model == 'text-curie-006': #if the model is curie
+            dollars = tokens * (0.006/1000)
         elif model == 'text-babbage-001': #if the model is babbage
-            dollars = tokens * 0.0000012
+            dollars = tokens * (0.0012/1000)
+        elif model =='text-ada-001': #if the model is ada
+            dollars = tokens * (0.0008/1000)
         else:
             dollars = 0
         total_dollars_used += dollars #add the dollars used to the total dollars usage
@@ -163,10 +167,14 @@ class Application(tk.Frame):
         self.last_url = url  # save the last url
         #find section and subsection of the paper
         list_of_section = functions.get_sections(tex_files)
+        list_of_section = functions.remove_duplicates(list_of_section, simplecase=True)
         print(list_of_section)
         self.sections.delete(1.0, tk.END)
+        interlink = Interlink(self.sections, self.keybox)
         for i in list_of_section:
             self.sections.insert(tk.END, i)
+            # apply the hyperlinks to the phrases
+            self.sections.highlight_pattern(i,interlink)
         
         
 
