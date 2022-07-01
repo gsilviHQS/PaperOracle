@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import tkinter as tk 
+import tkinter as tk
 import os
 
 from pyparsing import col
@@ -11,7 +11,7 @@ from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink
 
 # default url and question to start from, as an example
 default_url = 'https://arxiv.org/abs/2201.08194v1'
-default_question = 'What are the steps to implement shadow tomography?'
+default_question = 'What are the steps to implement classical shadows?'
 
 
 class Application(tk.Frame):
@@ -20,6 +20,7 @@ class Application(tk.Frame):
         self.master = master
         self.last_url = ''
         self.create_widgets()
+                                   
 
     def create_widgets(self):
         # variables
@@ -54,8 +55,8 @@ class Application(tk.Frame):
         tk.Label(self.master, text="Keywords to search (separated by comma)").grid(row=2, column=1, columnspan=2)
         self.keybox = tk.Text(self.master, width=70, height=1)
         self.keybox.grid(row=3, column=1, columnspan=2)
-        tk.Label(self.master, text="Answer from GPT-3").grid(row=5, column=1, columnspan=2)
-        tk.Label(self.master, text="Matching Phrases in tex files").grid(row=7, column=1, columnspan=2)
+        tk.Label(self.master, text="Matching Phrases in tex files").grid(row=5, column=1, columnspan=2)
+        tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
 
         #Column 2 widgets
         tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.E)
@@ -73,11 +74,20 @@ class Application(tk.Frame):
         self.question.insert(0, default_question)
         self.question.focus()
         
-        
+         # new textbox for the phrases matching the question
+        self.textbox2 = CustomText(self.master, height=20, width=90)
+        self.textbox2.grid(row=6, column=1, columnspan=2)
+        self.textbox2.insert(tk.END, "Phrases")
+        self.textbox2.config(state=tk.DISABLED,
+                             background="white",
+                             foreground="black",
+                             font=("Helvetica", 11),
+                             borderwidth=2,
+                             )
 
         # output box to display the result
         self.textbox = tk.Text(self.master, height=20, width=90)
-        self.textbox.grid(row=6, column=1, columnspan=2)
+        self.textbox.grid(row=8, column=1, columnspan=2)
         self.textbox.insert(tk.END, "Output")
         self.textbox.config(state=tk.DISABLED,
                             background="white",
@@ -86,16 +96,7 @@ class Application(tk.Frame):
                             borderwidth=2,
                             )
         
-        # new textbox for the phrases matching the question
-        self.textbox2 = CustomText(self.master, height=20, width=90)
-        self.textbox2.grid(row=8, column=1, columnspan=2)
-        self.textbox2.insert(tk.END, "Phrases")
-        self.textbox2.config(state=tk.DISABLED,
-                             background="white",
-                             foreground="black",
-                             font=("Helvetica", 11),
-                             borderwidth=2,
-                             )
+       
 
 
         #BUTTONS
@@ -270,8 +271,12 @@ class Application(tk.Frame):
                 result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), self.papertitle.get(), api_key) #ask GPT-3 to give the answer
                 self.update_token_usage(tokens, model) #update the token usage
                 self.textbox.insert(tk.END, result)  # insert the answer in the output box
+                self.textbox.config(background="green") # change the background color of the output box
+                self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             except Exception as e:
                 self.textbox.insert(tk.END, 'Error: ' + str(e))
+                self.textbox.config(background="red") # change the background color of the output box
+                self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             
         else:
             self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
@@ -283,7 +288,7 @@ class Application(tk.Frame):
 root = tk.Tk()
 root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
 root.geometry("1500x800")
-root.columnconfigure(3)
+root.columnconfigure(3) 
 root.bind_class("Entry", "<<Paste>>", custom_paste)
 root.grid_columnconfigure(0, weight=1) 
 root.grid_columnconfigure(1, weight=1)
