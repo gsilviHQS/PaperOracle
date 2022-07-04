@@ -212,6 +212,9 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
 
 def connect_adjacent_phrases(list_of_phrases):
     """ Connect the adjacent phrases """
+    # sort the phrases by start position
+    list_of_phrases = sorted(list_of_phrases, key=lambda x: x[1])
+    # connect the phrases
     phrases = []
     for i in range(len(list_of_phrases)):
         if i == 0:
@@ -219,7 +222,7 @@ def connect_adjacent_phrases(list_of_phrases):
         else:
             if abs(list_of_phrases[i][1] - list_of_phrases[i-1][2]) <= MAX_DISTANCE_BETWEEN_PHRASES:
                 phrases[-1] = (phrases[-1][0] + ' ' + list_of_phrases[i][0], phrases[-1][1], list_of_phrases[i][2])
-                phrases.append(phrases[-1])
+                phrases.append(phrases[-1]) #TODO: check if this is necessary
             else:
                 phrases.append(list_of_phrases[i])
     return [ele[0] for ele in phrases] # lose track of positions
@@ -248,6 +251,7 @@ def get_hyperlink(phrases, full_text):
     all_hyperlinks = []
     for phrase in phrases:
         citations = list(itertools.chain(*[ele.split(',') for ele in re.findall(pattern=r'\\cite{(.*?)}', string=phrase)])) # list of citations inside \cite{} for a give phrase
+        print("citations:", citations)
         for cit in citations:
             hyperlink = link_patter_finder(cit, full_text) # find the arXiv hyperlink for a given citation
             if hyperlink is not None:
@@ -261,17 +265,18 @@ def link_patter_finder(cit, text):
     raw_text = r"{}".format(text)
     # List of possible bibitem patterns, this may need to be updated if the bibitem is not in the text
     patterns = [('\]\{'+cit+'\}(.*?)BibitemShut', re.DOTALL,'{https://arxiv.org/abs/(.*?)}'),
-                ('bibitem\{'+cit+'\}(.*)', 0, 'arXiv:(....\......)')
+                ('\]\{'+cit+'\}(.*?)BibitemShut', re.DOTALL,'{http://arxiv.org/abs/(.*?)}'),
+                ('bibitem\{'+cit+'\}(.*)', 0, 'arXiv:(....\......)'),
                 ]
     hyperlink = None
     # Loop over the patterns and find the bibitem pattern, once it is found, return the hyperlink
     for pattern in patterns:
         res = re.search(pattern[0], raw_text, flags=pattern[1])
         if res is not None:
-            # print('Match:',res)
+            print('Match:',res.group(),res.group(1))
             link = re.search(pattern[2], res.group(1), flags=pattern[1])
             if link is not None:
-                # print('Link',link.group(1))
+                print('Link',link.group(1))
                 hyperlink = 'https://arxiv.org/abs/'+link.group(1)
                 break
     return hyperlink
