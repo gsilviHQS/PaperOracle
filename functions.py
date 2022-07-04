@@ -70,12 +70,16 @@ def getPaper(paper_url):
         tar.close()  # close the tar file
 
     texfiles = []
+    bibfiles = []
     for subdir, dirs, files in os.walk(filename):
         for file in files:
             if file.endswith(".tex"):
                 texfilename = os.path.join(subdir, file)
                 texfiles.append(texfilename)
-    return texfiles  # return the texfiles
+            elif file.endswith(".bib") or file.endswith(".bbl"):
+                bibfilename = os.path.join(subdir, file)
+                bibfiles.append(bibfilename)
+    return texfiles, bibfiles  # return the texfiles
 
 
 def extract_all_text(texfiles):

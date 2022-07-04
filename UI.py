@@ -10,8 +10,8 @@ from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink
 
 
 # default url and question to start from, as an example
-default_url = 'https://arxiv.org/abs/2201.08194v1'
-default_question = 'What are the steps to implement classical shadows?'
+default_url = 'http://arxiv.org/abs/2104.00569'
+default_question = 'Does POVM offer an advantage in the context of quantum chemistry calculations?'
 
 
 class Application(tk.Frame):
@@ -160,9 +160,11 @@ class Application(tk.Frame):
     def get_paper(self):
         """ Get the paper from the url """
         url = self.url.get()  # get the url from the entry box
-        tex_files = functions.getPaper(url)  # get the paper from arxiv
+        tex_files,bibfiles = functions.getPaper(url)  # get the paper from arxiv
         print('tex_files found:', tex_files)
         self.complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
+        self.bib_text = functions.extract_all_text(bibfiles)  # extract the text from the bib file
+        print('bib_text found:', bibfiles)
         header = functions.getTitleOfthePaper(url) #get the title of the paper
         self.papertitle.set(header)  # set the papertitle label
         self.last_url = url  # save the last url
@@ -252,7 +254,7 @@ class Application(tk.Frame):
                 phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
 
             #substitue in the phrases the \cite with the hyperlink to arxiv
-            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, self.complete_text)
+            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, self.complete_text+self.bib_text)
 
             
             # show the phrases in the output box
