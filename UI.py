@@ -9,10 +9,6 @@ import functions
 from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink
 
 
-# default url and question to start from, as an example
-default_url = 'http://arxiv.org/abs/2104.00569'
-default_question = 'Does POVM offer an advantage in the context of quantum chemistry calculations?'
-
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -36,7 +32,7 @@ class Application(tk.Frame):
         self.apikey = tk.Entry(self.master, width=30)
         self.apikey.grid(row=1, column=0)
         tk.Label(self.master, text="arXiv URL").grid(row=2, column=0)
-        self.url = tk.Entry(self.master, width=50)
+        self.url = tk.Entry(self.master, width=40)
         self.url.grid(row=3, column=0)
         # tk.Label(self.master, text="Paper title").grid(row=4, column=0)
         self.papertitle = tk.StringVar()
@@ -59,19 +55,32 @@ class Application(tk.Frame):
         tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
 
         #Column 2 widgets
-        tk.Label(self.master, textvariable = self.token_label).grid(row=0, column=2 , sticky=tk.E)
+        tk.Label(self.master, textvariable = self.token_label).grid(row=9, column=0 , sticky=tk.W)
         
         #Set defaults values
         # if api.txt exist then insert the content of api.txt into apikey entry else insert default value
-        if os.path.isfile('API.txt'):
-            with open('API.txt', 'r') as f:
+        if os.path.isfile('API.csv'):
+            with open('API.csv', 'r') as f:
                 self.apikey.insert(0, f.read())
         else:
             self.apikey.insert(0, 'Your API Key here')
             #add button to save the api key
-            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=0, column=2, sticky=tk.W)
-        self.url.insert(0, default_url)
-        self.question.insert(0, default_question)
+            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=1, column=0, sticky=tk.E)
+
+        # if default_values.csv exist then load url and question from default_values.csv
+        if os.path.isfile('default_url.csv'):
+            with open('default_url.csv', 'r') as f:
+                self.url.insert(0, f.read())
+        if os.path.isfile('default_question.csv'):
+            with open('default_question.csv', 'r') as f:
+                self.question.insert(0, f.read())
+        #add one button to save default url
+        tk.Button(self.master, text='Save URL', command=self.save_url).grid(row=3, column=0, sticky=tk.E)
+        #add one button to save default question
+        tk.Button(self.master, text='Save Question', command=self.save_question).grid(row=1, column=2, sticky=tk.E)
+
+
+       
         self.question.focus()
         
          # new textbox for the phrases matching the question
@@ -103,7 +112,7 @@ class Application(tk.Frame):
         #button under url box named "Get paper"
         tk.Button(self.master, text='Get paper', command=self.get_paper).grid(row=4, column=0)
 
-        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=1, column=2, sticky=tk.E)                     
+        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=10, column=0, sticky=tk.W)                     
 
         tk.Button(self.master, text="Generate keywords from question", command=self.search_keywords).grid(row=4,
                                                                                           column=1, columnspan=2)
@@ -132,8 +141,18 @@ class Application(tk.Frame):
 
     def save_api_key(self):
         api_key = self.apikey.get()
-        with open('API.txt', 'w') as f:
+        with open('API.csv', 'w') as f:
             f.write(api_key)
+    
+    def save_url(self):
+        url = self.url.get()
+        with open('default_url.csv', 'w') as f:
+            f.write(url)
+    
+    def save_question(self):
+        question = self.question.get()
+        with open('default_question.csv', 'w') as f:
+            f.write(question)
 
     def update_token_usage(self,tokens, model):
         total_token_used = self.token_usage.get() #get the current token usage

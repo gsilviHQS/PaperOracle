@@ -1,6 +1,7 @@
 papers/
 build/
 dist/
+*.csv
 *.pyc
 *.swp
 *.desktop*
