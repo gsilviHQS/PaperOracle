@@ -4,6 +4,8 @@ from functools import partial
 
 #UTILITIES for INTERFACE
 
+COLOR_LIST = ["red","cyan","green","magenta","orange","pink","brown"]
+
 def custom_paste(event):
         try:
             event.widget.delete("sel.first", "sel.last")
@@ -17,8 +19,20 @@ class CustomText(tk.Text):
     '''
     def __init__(self, *args, **kwargs):
         tk.Text.__init__(self, *args, **kwargs)
+        self.tag_configure("red", foreground="#ff0000")
+        self.tag_configure("blue", foreground="#0000ff")
+        self.tag_configure("green", foreground="#00ff00")
+        self.tag_configure("yellow", foreground="#ffff00")
+        self.tag_configure("cyan", foreground="#00ffff")
+        self.tag_configure("magenta", foreground="#ff00ff")
+        self.tag_configure("black", foreground="#000000")
+        self.tag_configure("white", foreground="#ffffff")
+        self.tag_configure("gray", foreground="#808080")
+        self.tag_configure("lightgray", foreground="#c0c0c0")
+        self.tag_configure("darkgray", foreground="#404040")
 
-    def highlight_pattern(self, pattern, hyperlink, start="1.0", end="end",
+
+    def highlight_pattern(self, pattern, hyperlink=None,tag=None, start="1.0", end="end",
                           regexp=False):
         '''Apply the hyperlink to all text that matches the given pattern
 
@@ -40,8 +54,10 @@ class CustomText(tk.Text):
             if count.get() == 0: break # degenerate pattern which matches zero-length strings
             self.mark_set("matchStart", index)
             self.mark_set("matchEnd", "%s+%sc" % (index, count.get()))
-            #self.tag_add(tag, "matchStart", "matchEnd")
-            self.replace("matchStart", "matchEnd",pattern, hyperlink.add(pattern))
+            if tag is not None:
+                self.tag_add(tag, "matchStart", "matchEnd")
+            if hyperlink is not None:
+                self.replace("matchStart", "matchEnd",pattern, hyperlink.add(pattern))
             
 
 class HyperlinkManager:
@@ -87,22 +103,38 @@ class HyperlinkManager:
             if tag[:6] == "hyper-":
                 self.target_box.delete(0, tk.END)  # CHECK which type is targetbox. if entry -, if custom box then is 1.0
                 self.target_box.insert(tk.END, self.urls[tag]) # insert the hyperlink in the output box
-                self.target_box.config(background="green") # change the background color of the output box
+                self.target_box.config(background="blue") # change the background color of the output box
                 self.target_box.after(200, lambda: self.target_box.config(background="white")) # reset the background color after 200ms
                 return
 class Interlink(HyperlinkManager):
-      def add(self, pattern):
-        # add an action to the manager.  returns tags to use in
-        # associated text widget
+    def __init__(self, text, keybox, questionbox):
+        super().__init__(text, keybox)
+        self.questionbox = questionbox
+        self.text.tag_config("hyper", foreground="green", underline=1)
+        self.text.tag_bind("hyper", "<Button-3>", self._copy_in_keywords) #override the default copy in urlbox from super().__init__
+    def add(self, pattern):
+        # add an action to the manager, copying the pattern to keywords box
         tag = "hyper-%d" % len(self.links) # use len(links) to get a unique number
         self.links[tag] = self._copy_in_keywords
         self.urls[tag] = pattern
-        self.text.tag_bind("hyper", "<Button-3>", self._enter) #click hyperlink
+        
         return "hyper", tag
-      def _copy_in_keywords(self):
+    def _copy_in_keywords(self, event=None):
         for tag in self.text.tag_names(tk.CURRENT):
             if tag[:6] == "hyper-":
                 self.target_box.delete(1.0 , tk.END)
                 self.target_box.insert(tk.END, self.urls[tag].strip('\t'))
                 self.target_box.config(background="green")
                 self.target_box.after(200, lambda: self.target_box.config(background="white"))
+                if event is None:
+                    self.questionbox.delete(1.0, tk.END)
+                    self.questionbox.insert(tk.END, "Summarize")
+                    self.questionbox.config(background="green")
+                    self.questionbox.after(200, lambda: self.questionbox.config(background="white"))
+#TODO: highlight the keywords in the textbox2
+# class HighLight(HyperlinkManager):
+#     def __init__(self, text):
+#         super().__init__(text, keybox)
+#     def add(self, pattern):
+#         #just color the text
+#         self.text.tag_config(pattern, foreground="red")

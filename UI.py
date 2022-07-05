@@ -2,11 +2,9 @@
 import tkinter as tk
 import os
 
-from pyparsing import col
-
 #MY FUNCTIONS
 import functions
-from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink
+from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink,COLOR_LIST
 
 
 
@@ -45,11 +43,11 @@ class Application(tk.Frame):
         
         #Column 1 widgets
         tk.Label(self.master, text="Question").grid(row=0,column=1, columnspan=2)
-        self.question = tk.Entry(self.master, width=70)
+        self.question = tk.Text(self.master, width=70, height=2)
         self.question.grid(row=1, column=1, columnspan=2)
 
         tk.Label(self.master, text="Keywords to search (separated by comma)").grid(row=2, column=1, columnspan=2)
-        self.keybox = tk.Text(self.master, width=70, height=1)
+        self.keybox = tk.Text(self.master, width=70, height=2)
         self.keybox.grid(row=3, column=1, columnspan=2)
         tk.Label(self.master, text="Matching Phrases in tex files").grid(row=5, column=1, columnspan=2)
         tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
@@ -70,10 +68,10 @@ class Application(tk.Frame):
         # if default_values.csv exist then load url and question from default_values.csv
         if os.path.isfile('default_url.csv'):
             with open('default_url.csv', 'r') as f:
-                self.url.insert(0, f.read())
+                self.url.insert(tk.END, f.read())
         if os.path.isfile('default_question.csv'):
             with open('default_question.csv', 'r') as f:
-                self.question.insert(0, f.read())
+                self.question.insert(tk.END, f.read())
         #add one button to save default url
         tk.Button(self.master, text='Save URL', command=self.save_url).grid(row=3, column=0, sticky=tk.E)
         #add one button to save default question
@@ -150,7 +148,7 @@ class Application(tk.Frame):
             f.write(url)
     
     def save_question(self):
-        question = self.question.get()
+        question = self.question.get("1.0", tk.END)
         with open('default_question.csv', 'w') as f:
             f.write(question)
 
@@ -192,7 +190,7 @@ class Application(tk.Frame):
         list_of_section = functions.remove_duplicates(list_of_section, simplecase=True)
         print(list_of_section)
         self.sections.delete(1.0, tk.END)
-        interlink = Interlink(self.sections, self.keybox)
+        interlink = Interlink(self.sections, self.keybox, self.question)
         for i in list_of_section:
             self.sections.insert(tk.END, i)
             # apply the hyperlinks to the phrases
@@ -202,7 +200,7 @@ class Application(tk.Frame):
 
     def search_keywords(self):
         api_key = self.apikey.get()
-        question = self.question.get()
+        question = self.question.get("1.0", tk.END)
         keywords, tokens, model = functions.promptText_keywords(question, api_key)
         self.update_token_usage(tokens, model)
         keywords = keywords.strip().strip('\n') #remove the newline character from the keywords
@@ -216,7 +214,7 @@ class Application(tk.Frame):
 
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
-        question = self.question.get()  # get the question from the entry box
+        question = self.question.get("1.0", tk.END)  # get the question from the entry box
 
         if self.last_url != self.url.get():  # if the url has changed
             self.get_paper()  # download the paper
@@ -285,6 +283,10 @@ class Application(tk.Frame):
             hyperlink = HyperlinkManager(self.textbox2, self.url)
             for link in all_hyperlinks:
                 self.textbox2.highlight_pattern(link,hyperlink)
+  
+            for k,keyword in enumerate(keywords.split(',')):
+                print(COLOR_LIST[k%len(COLOR_LIST)])
+                self.textbox2.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
             self.textbox2.config(state=tk.DISABLED)
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
