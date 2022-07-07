@@ -20,43 +20,21 @@ MODERATE_ENGINE = "text-curie-001"
 SIMPLE_ENGINE = "text-babbage-001"
 WORST_ENGINE ="text-ada-001"
 
-def remove_duplicates(list_of_phrases, simplecase=False):
-    """ Remove duplicates from a list """
-    seen = set()
-    clean_list_of_phrases = []
-    if simplecase:
-        for item in list_of_phrases:
-            if item not in seen:
-                seen.add(item)
-                clean_list_of_phrases.append(item)
-    else:
-        for item,start,end in list_of_phrases:
-            if item not in seen:
-                seen.add(item)
-                clean_list_of_phrases.append((item,start,end))
-    return clean_list_of_phrases
-
-
-
-
+####################### arXiv related functions ##############################
 def getTitleOfthePaper(paper_url):
-    """ 
-    Returns the title of the paper from the arxiv page """
+    """Returns the title of the paper from the arxiv page """
     r = requests.get(paper_url)
     soup = BeautifulSoup(r.text, "html.parser")
     title = soup.find("title").string
     return title
 
-
 def getPaper(paper_url):
     """
-    Downloads a paper from it's arxiv page and returns
-    the filename
+    Downloads a paper from it's arxiv page, download the tar file, extract the tex file, and return the text
+    Search also for tex in bibtex file
     """
     filename = paper_url.split(
         '/')[-1]  # get the last part of the url, i.e. the numbers
-    if not os.path.exists('papers'):
-        os.makedirs('papers')
     filename = 'papers/' + filename
     if not os.path.exists(filename):  # if the directory doesn't exist
         os.mkdir(filename)  # create a directory
@@ -68,6 +46,7 @@ def getPaper(paper_url):
         tar = tarfile.open(filename + ".tar.gz", "r:gz")  # open the tar file
         tar.extractall(path=filename)  # extract the tar file
         tar.close()  # close the tar file
+        os.remove(filename + ".tar.gz")  # remove the tar file
 
     texfiles = []
     bibfiles = []
@@ -82,13 +61,15 @@ def getPaper(paper_url):
     return texfiles, bibfiles  # return the texfiles
 
 
+####################### TEXT-related functions ##############################
+
+
 def extract_all_text(texfiles):
     """ Extract all the text from the tex file """
     text = ''
     for texfile in texfiles:
         with open(texfile, 'r') as f:
             lines = f.readlines()
-
         for line in lines:
             text += line
     return text
@@ -113,7 +94,7 @@ def find_prev(string, pos, list_of_substrings):
         return max(positive_positions)
 
 def get_sections(texfiles):
-    """ Extract the sections from the tex file """
+    """ Extract the sections and subsections from the tex file """
     sections = []
     for texfile in texfiles:
         with open(texfile, 'r') as f:
@@ -123,7 +104,6 @@ def get_sections(texfiles):
             if line.startswith('\\section{'):
                 # extract the section name in between keywords \\section{ and }
                 section = line.split('section{')[1].split('}')[0]
-                
                 sections.append(section+'\n')
             elif line.startswith('\\section*{'):
                 # extract the section name in between keywords \\section*{ and }
@@ -134,6 +114,22 @@ def get_sections(texfiles):
                 subsection = line.split('subsection{')[1].split('}')[0]
                 sections.append('\t'+subsection+'\n')
     return sections
+
+def remove_duplicates(list_of_phrases, simplecase=False):
+    """ Remove duplicates from a list """
+    seen = set()
+    clean_list_of_phrases = []
+    if simplecase:
+        for item in list_of_phrases:
+            if item not in seen:
+                seen.add(item)
+                clean_list_of_phrases.append(item)
+    else:
+        for item,start,end in list_of_phrases:
+            if item not in seen:
+                seen.add(item)
+                clean_list_of_phrases.append((item,start,end))
+    return clean_list_of_phrases
 
 
 def extract_phrases(keyword, text, api_key, number_of_phrases):
@@ -209,48 +205,33 @@ def extract_phrases(keyword, text, api_key, number_of_phrases):
             number_of_phrases += 1
             
     phrases = remove_duplicates(phrases)  # remove duplicate phrases from the list
-    # clean the phrases from \cite
-    #phrases = promptcleanLatex(phrases, api_key)
  
     return phrases, stop_signal, number_of_phrases  # return the phrases and the stop signal triggered by the number of phrases
 
 def connect_adjacent_phrases(list_of_phrases):
     """ Connect the adjacent phrases """
-    # sort the phrases by start position
+    # sort the phrases by start position x[1]
     list_of_phrases = sorted(list_of_phrases, key=lambda x: x[1])
     # connect the phrases
-    phrases = []
+    new_phrases = []
     for i in range(len(list_of_phrases)):
         if i == 0:
-            phrases.append(list_of_phrases[i])
+            new_phrases.append(list_of_phrases[i])
         else:
             if abs(list_of_phrases[i][1] - list_of_phrases[i-1][2]) <= MAX_DISTANCE_BETWEEN_PHRASES:
-                phrases[-1] = (phrases[-1][0] + ' ' + list_of_phrases[i][0], phrases[-1][1], list_of_phrases[i][2])
-                phrases.append(phrases[-1]) #TODO: check if this is necessary
+                new_phrases[-1] = (new_phrases[-1][0] + ' ' + list_of_phrases[i][0], new_phrases[-1][1], list_of_phrases[i][2])
+                new_phrases.append(new_phrases[-1]) #TODO: in case we connect more than 2 phrases this will undercount the number of phrases
             else:
-                phrases.append(list_of_phrases[i])
-    return [ele[0] for ele in phrases] # lose track of positions
+                new_phrases.append(list_of_phrases[i])
+    return [ele[0] for ele in new_phrases] # remove info about positions
 
-def check_relevance(list_of_phrases, question, api_key, askGPT=True):
-    """ Check the relevance of the phrases to the question """
-    total_tokens = 0
-    model = None
-    phrases_with_relevance = []
-
-    most_common_phrases = Counter(list_of_phrases).most_common(MAX_PHRASES_TO_USE)  # order phrases by most common
-    
-    for phrase in most_common_phrases:
-        if askGPT:
-            result, tokens, model = promptText_relevance(question, phrase[0], api_key)
-            total_tokens += tokens
-            if 'Yes' in result:
-                phrases_with_relevance.append(phrase)
-        else:
-            phrases_with_relevance.append(phrase)
-    return phrases_with_relevance, total_tokens, model
+def most_common_phrases(list_of_phrases):
+    """ Order the phrases by most common """
+    most_common_phrases = Counter(list_of_phrases).most_common(MAX_PHRASES_TO_USE)  # order phrases by most common, and limit to MAX_PHRASES_TO_USE
+    return most_common_phrases
 
 def get_hyperlink(phrases, full_text):
-    """Find arxiv hyperlinks in the. Bibitem"""
+    """Find arxiv hyperlinks in the Bibitem"""
     newphrases = []
     all_hyperlinks = []
     for phrase in phrases:
@@ -285,30 +266,8 @@ def link_patter_finder(cit, text):
                 break
     return hyperlink
     
-########### GPT-3 functions #######################
-
-def promptText_relevance(question, phrase, api_key):
-    """ Prompt the question to gpt and return the keywords """
-
-    header = "Question: : " + question + "\n"
-    body = "Possible answer:" + phrase + "\n"
-    prompt = header + body + "Is the Possible answer relevant to the Question? Yes or No:"
-    # openai.organization = 'Default'
-    openai.api_key = api_key
-    # engine_list = openai.Engine.list() # calling the engines available from the openai api
-    print('INPUT:\n', prompt)
-    response = openai.Completion.create(
-        engine=BEST_ENGINE,
-        prompt=prompt,
-        temperature=0,
-        max_tokens=3,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        # stop=["\n"]
-    )
-    print('\nOUTPUT:', response['choices'][0]['text'])
-    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
+    
+####################### GPT-3 functions #######################
 
 
 def promptText_keywords(question, api_key):
@@ -394,7 +353,31 @@ def promptText_question2(question, inputtext, header, api_key):
 
 
 
-# OBSOLETE FUNCTIONS
+####################### OBSOLETE FUNCTIONS #######################
+
+
+def promptText_relevance(question, phrase, api_key):
+    """ Prompt the question to gpt and return the keywords """
+
+    header = "Question: : " + question + "\n"
+    body = "Possible answer:" + phrase + "\n"
+    prompt = header + body + "Is the Possible answer relevant to the Question? Yes or No:"
+    # openai.organization = 'Default'
+    openai.api_key = api_key
+    # engine_list = openai.Engine.list() # calling the engines available from the openai api
+    print('INPUT:\n', prompt)
+    response = openai.Completion.create(
+        engine=BEST_ENGINE,
+        prompt=prompt,
+        temperature=0,
+        max_tokens=3,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        # stop=["\n"]
+    )
+    print('\nOUTPUT:', response['choices'][0]['text'])
+    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 def promptcleanLatex(phrases, api_key):
     """ Loop over phrases and prompt them to gpt to remove \cite() """
@@ -415,33 +398,3 @@ def promptcleanLatex(phrases, api_key):
             phrase = response['choices'][0]['text']
         clean_phrases.append(phrase)
     return clean_phrases, response['usage']['total_tokens']
-
-
-
-
-
-def extract_section_and_subsections(keywords, texfile):
-    """ Extract the sections and subsections from the tex file """
-    texfile = open(texfile).read()
-    extracted_text = []
-    for i in range(len(keywords) - 1):
-        # add len so that the index start after the code
-        start = texfile.find(keywords[i]) + len(keywords[i])
-        end = texfile.find(keywords[i + 1])
-        extracted_text.append(texfile[start:end])
-    return extracted_text
-
-
-
-# def find_next(s, pos, c):
-#     i = s.find(c, pos + 1)  # find the next occurrence of c after pos
-#     if i == -1:
-#         return None
-#     return i
-
-
-# def find_prev(s, pos, c):
-#     i = s.rfind(c, 0, pos)  # find the previous occurrence of c before pos
-#     if i == -1:
-#         return None
-#     return i

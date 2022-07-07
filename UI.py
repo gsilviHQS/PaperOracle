@@ -17,26 +17,48 @@ class Application(tk.Frame):
                                    
 
     def create_widgets(self):
+        # make a folder if it doesn't exist
+        if not os.path.exists('papers'):
+            os.makedirs('papers')
+        
+        
         # variables
         self.dollars = tk.DoubleVar()
         self.dollars.set(0.0)
+        
         self.token_usage = tk.IntVar()
         self.token_usage.set(0)
+        
         self.token_label = tk.StringVar()
         self.token_label.set('Usage: '+str(self.token_usage.get())+' tokens')
+        
+        self.papertitle = tk.StringVar()
+        self.papertitle.set('\n')
+
+        self.default_paper = tk.StringVar()
+        
+        self.default_paper.set("Papers")
+        self.default_paper.trace("w", self.callback_to_url)
 
         # Column 0 widgets
         tk.Label(self.master, text="API Key").grid(row=0, column=0)
         self.apikey = tk.Entry(self.master, width=30)
         self.apikey.grid(row=1, column=0)
         tk.Label(self.master, text="arXiv URL").grid(row=2, column=0)
-        self.url = tk.Entry(self.master, width=40)
+        self.url = tk.Entry(self.master, width=35)
         self.url.grid(row=3, column=0)
         # tk.Label(self.master, text="Paper title").grid(row=4, column=0)
-        self.papertitle = tk.StringVar()
-        self.papertitle.set('\n')
+        
         tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=0)
-       
+        
+        
+        #option menu
+        self.check_papers_in_folder() #check if there are papers in the folder
+        if len(self.folders) > 0:
+            self.folder_menu = tk.OptionMenu(self.master, self.default_paper, *self.folders)
+            self.folder_menu.grid(row=3, column=0,sticky=tk.E)
+
+        # section and subsection
         self.sections = CustomText(self.master, wrap=tk.WORD, width=70, height=50)
         self.sections.grid(row=6, column=0, rowspan=3)
         
@@ -62,8 +84,9 @@ class Application(tk.Frame):
                 self.apikey.insert(0, f.read())
         else:
             self.apikey.insert(0, 'Your API Key here')
-            #add button to save the api key
-            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=1, column=0, sticky=tk.E)
+            # if apikey is selected by the user then cancel its content
+            self.apikey.bind('<Button-1>', lambda event: self.apikey.delete(0, tk.END))
+            tk.Button(self.master, text='Save API Key', command=self.save_api_key).grid(row=1, column=0, sticky=tk.W)
 
         # if default_values.csv exist then load url and question from default_values.csv
         if os.path.isfile('default_url.csv'):
@@ -73,16 +96,16 @@ class Application(tk.Frame):
             with open('default_question.csv', 'r') as f:
                 self.question.insert(tk.END, f.read())
         #add one button to save default url
-        tk.Button(self.master, text='Save URL', command=self.save_url).grid(row=3, column=0, sticky=tk.E)
+        tk.Button(self.master, text='Set default URL', command=self.save_url).grid(row=3, column=0, sticky=tk.W)
         #add one button to save default question
-        tk.Button(self.master, text='Save Question', command=self.save_question).grid(row=1, column=2, sticky=tk.E)
+        tk.Button(self.master, text='Set default Question', command=self.save_question).grid(row=1, column=2, sticky=tk.E)
 
 
        
         self.question.focus()
         
          # new textbox for the phrases matching the question
-        self.textbox2 = CustomText(self.master, height=20, width=90)
+        self.textbox2 = CustomText(self.master, height=20, width=90, wrap='word')
         self.textbox2.grid(row=6, column=1, columnspan=2)
         self.textbox2.insert(tk.END, "Phrases")
         self.textbox2.config(state=tk.DISABLED,
@@ -93,13 +116,13 @@ class Application(tk.Frame):
                              )
 
         # output box to display the result
-        self.textbox = tk.Text(self.master, height=20, width=90)
+        self.textbox = tk.Text(self.master, height=20, width=90, wrap='word')
         self.textbox.grid(row=8, column=1, columnspan=2)
         self.textbox.insert(tk.END, "Output")
         self.textbox.config(state=tk.DISABLED,
                             background="white",
                             foreground="black",
-                            font=("Helvetica", 11),
+                            font=("Helvetica", 11,'bold'),
                             borderwidth=2,
                             )
         
@@ -116,8 +139,8 @@ class Application(tk.Frame):
                                                                                           column=1, columnspan=2)
 
         self.boolean2 = tk.IntVar()
-        self.boolean2.set(0)
-        self.check_phrase = tk.Checkbutton(self.master, text="(Expensive)Check phrases for relevance", variable=self.boolean2).grid(row=9, 
+        self.boolean2.set(1)
+        self.advance_prompt = tk.Checkbutton(self.master, text="Use advanced prompt", variable=self.boolean2).grid(row=9, 
                                                                                                      column=1, 
                                                                                                      sticky=tk.E)
         
@@ -130,7 +153,17 @@ class Application(tk.Frame):
                                                                     column=2,
                                                                     pady=4,
                                                                     sticky=tk.W)
+        
 
+
+    def callback_to_url(self,*args):
+        self.url.delete(0, tk.END)
+        url_to_use = "http://arxiv.org/abs/"+self.default_paper.get()
+        self.url.insert(0,url_to_use)
+        self.get_paper()
+
+    def check_papers_in_folder(self):
+        self.folders = list(os.listdir('papers/'))
 
     def reset_token_usage(self):
         self.token_usage.set(0)
@@ -235,7 +268,6 @@ class Application(tk.Frame):
             
             if phrase is not None:
                 list_of_phrases.extend(phrase)
-                number_of_phrases = len(list_of_phrases)
                 print('For keyword \'' + keyword + '\' the phrases found are:', len(phrase))
             else:
                 print('For keyword \'' + keyword + '\' no phrase found')
@@ -244,7 +276,7 @@ class Application(tk.Frame):
             if stop:
                 break  # if the stop flag is set, break the loop
       
-        # print('Phrases (',len(list_of_phrases),')',list_of_phrases)
+
 
         # Initialize the textbox to receive the generated text
         self.textbox.config(state=tk.NORMAL)
@@ -256,13 +288,9 @@ class Application(tk.Frame):
             # Here the code check if the user wants to use the check for relevance of each phrase,
             # otherwise it will just order phrases by most common according to keywords appearance
             # and limit the number to PHRASES_TO_USE (defined in functions.py)
-            if self.boolean2.get() == 1: 
-                askGPT3 = True
-            else:
-                askGPT3 = False
-            list_of_phrases = functions.connect_adjacent_phrases(list_of_phrases) 
-            clean_list_of_phrases, tokens, model = functions.check_relevance(list_of_phrases,question,api_key,askGPT3)
-            self.update_token_usage(tokens, model) #update the token usage
+
+            list_of_phrases = functions.connect_adjacent_phrases(list_of_phrases)  # connect adjacent phrases
+            clean_list_of_phrases = functions.most_common_phrases(list_of_phrases) # get the most common phrases
             
             just_phrases = []
             phrase_with_frequency = []
@@ -291,7 +319,7 @@ class Application(tk.Frame):
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                if 'Summarize' in question:
+                if 'Summarize' in question or self.boolean2.get() == 0:
                     result, tokens, model = functions.promptText_question(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
                 else:
                     result, tokens, model = functions.promptText_question2(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
@@ -315,6 +343,7 @@ root = tk.Tk()
 root.title("ArXiv Paper Genie: Q&A Tool with OpenAI GPT-3")
 root.geometry("1500x800")
 root.columnconfigure(3) 
+root.configure(background="darkgray")
 root.bind_class("Entry", "<<Paste>>", custom_paste)
 root.grid_columnconfigure(0, weight=1) 
 root.grid_columnconfigure(1, weight=1)

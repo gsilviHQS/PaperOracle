@@ -131,10 +131,4 @@ class Interlink(HyperlinkManager):
                     self.questionbox.insert(tk.END, "Summarize")
                     self.questionbox.config(background="green")
                     self.questionbox.after(200, lambda: self.questionbox.config(background="white"))
-#TODO: highlight the keywords in the textbox2
-# class HighLight(HyperlinkManager):
-#     def __init__(self, text):
-#         super().__init__(text, keybox)
-#     def add(self, pattern):
-#         #just color the text
-#         self.text.tag_config(pattern, foreground="red")
+
