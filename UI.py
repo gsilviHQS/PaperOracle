@@ -291,7 +291,10 @@ class Application(tk.Frame):
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                result, tokens, model = functions.promptText_question(question, '-'+'\n-'.join(just_phrases), self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                if 'Summarize' in question:
+                    result, tokens, model = functions.promptText_question(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                else:
+                    result, tokens, model = functions.promptText_question2(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
                 self.update_token_usage(tokens, model) #update the token usage
                 self.textbox.insert(tk.END, result)  # insert the answer in the output box
                 self.textbox.config(background="green") # change the background color of the output box

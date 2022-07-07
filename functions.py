@@ -338,7 +338,7 @@ def promptText_keywords(question, api_key):
 
 
 def promptText_question(question, inputtext, header, api_key):
-
+    inputtext =  '-'+'\n-'.join(inputtext)
     openai.api_key = api_key
     # if the question doesn't end with a question mark, then is likely a command, add a period
     if question[:-1] != '?':
@@ -363,6 +363,27 @@ def promptText_question(question, inputtext, header, api_key):
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
     return response['choices'][0]['text'] , response['usage']['total_tokens'], response['model']
+
+def promptText_question2(question, inputtext, header, api_key):
+
+    openai.api_key = api_key
+    print('INPUT:\n', inputtext,question)
+    response = openai.Answer.create(
+        model=BEST_ENGINE,
+        documents = inputtext,
+        question=question,
+        temperature=0.1,
+        max_tokens=1000,
+        examples_context = "In 2017, U.S. life expectancy was 78.6 years.",
+        examples = [["What is human life expectancy in the United States?","78 years."]],
+        # top_p=1,
+        # frequency_penalty=0,
+        # presence_penalty=0,
+        # stop=["\n"]
+    )
+    print('\nOUTPUT:', response['answers'])
+    print(response)
+    return response['answers'][0] , 0, response['model']
 
 
 
