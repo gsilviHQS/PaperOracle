@@ -1,11 +1,14 @@
 #! /usr/bin/env python
 import tkinter as tk
 import os
+# import sympy as sp
+# from PIL import Image, ImageTk
+# from io import BytesIO
+# import textwrap
 
 #MY FUNCTIONS
 import functions
-from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink,COLOR_LIST
-
+from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink,COLOR_LIST, RightClicker
 
 
 class Application(tk.Frame):
@@ -44,9 +47,12 @@ class Application(tk.Frame):
         tk.Label(self.master, text="API Key").grid(row=0, column=0)
         self.apikey = tk.Entry(self.master, width=30)
         self.apikey.grid(row=1, column=0)
+        self.apikey.bind('<Button-3>', RightClicker)
+
         tk.Label(self.master, text="arXiv URL").grid(row=2, column=0)
         self.url = tk.Entry(self.master, width=35)
         self.url.grid(row=3, column=0)
+        self.url.bind('<Button-3>', RightClicker)
         # tk.Label(self.master, text="Paper title").grid(row=4, column=0)
         
         tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=0)
@@ -61,16 +67,19 @@ class Application(tk.Frame):
         # section and subsection
         self.sections = CustomText(self.master, wrap=tk.WORD, width=70, height=50)
         self.sections.grid(row=6, column=0, rowspan=3)
+        self.sections.bind('<Button-3>', RightClicker)
         
         
         #Column 1 widgets
         tk.Label(self.master, text="Question").grid(row=0,column=1, columnspan=2)
-        self.question = tk.Text(self.master, width=70, height=2)
+        self.question = tk.Text(self.master, wrap=tk.WORD, width=70, height=2)
         self.question.grid(row=1, column=1, columnspan=2)
+        self.question.bind('<Button-3>', RightClicker)
 
         tk.Label(self.master, text="Keywords to search (separated by comma)").grid(row=2, column=1, columnspan=2)
-        self.keybox = tk.Text(self.master, width=70, height=2)
+        self.keybox = tk.Text(self.master, wrap=tk.WORD, width=70, height=2)
         self.keybox.grid(row=3, column=1, columnspan=2)
+        self.keybox.bind('<Button-3>', RightClicker)
         tk.Label(self.master, text="Matching Phrases in tex files").grid(row=5, column=1, columnspan=2)
         tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
 
@@ -107,6 +116,7 @@ class Application(tk.Frame):
          # new textbox for the phrases matching the question
         self.textbox2 = CustomText(self.master, height=20, width=90, wrap='word')
         self.textbox2.grid(row=6, column=1, columnspan=2)
+        self.textbox2.bind('<Button-3>', RightClicker)
         self.textbox2.insert(tk.END, "Phrases")
         self.textbox2.config(state=tk.DISABLED,
                              background="white",
@@ -118,6 +128,7 @@ class Application(tk.Frame):
         # output box to display the result
         self.textbox = tk.Text(self.master, height=20, width=90, wrap='word')
         self.textbox.grid(row=8, column=1, columnspan=2)
+        self.textbox.bind('<Button-3>', RightClicker)
         self.textbox.insert(tk.END, "Output")
         self.textbox.config(state=tk.DISABLED,
                             background="white",
@@ -249,6 +260,7 @@ class Application(tk.Frame):
         api_key = self.apikey.get()  # get the api key from the entry box
         question = self.question.get("1.0", tk.END)  # get the question from the entry box
 
+
         if self.last_url != self.url.get():  # if the url has changed
             self.get_paper()  # download the paper
         #TODO: apply the hyperlinks to the papertitle label, first change to a custom textbox
@@ -283,15 +295,19 @@ class Application(tk.Frame):
         self.textbox.delete(1.0, tk.END)
 
         if len(list_of_phrases) > 0: #if there are phrases!
-            
+            if self.boolean2.get() == 0:
+                advance_search = False
+            else:
+                advance_search = True
             #print('list_of_phrases',list_of_phrases)
             # Here the code check if the user wants to use the check for relevance of each phrase,
             # otherwise it will just order phrases by most common according to keywords appearance
             # and limit the number to PHRASES_TO_USE (defined in functions.py)
 
             list_of_phrases = functions.connect_adjacent_phrases(list_of_phrases)  # connect adjacent phrases
-            clean_list_of_phrases = functions.most_common_phrases(list_of_phrases) # get the most common phrases
-            
+            clean_list_of_phrases = functions.most_common_phrases(list_of_phrases,advance_search) # get the most common phrases
+           
+
             just_phrases = []
             phrase_with_frequency = []
             for phrase in clean_list_of_phrases:
@@ -302,29 +318,30 @@ class Application(tk.Frame):
             phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, self.complete_text+self.bib_text)
 
             
-            # show the phrases in the output box
-            self.textbox2.config(state=tk.NORMAL)
-            self.textbox2.delete('1.0', tk.END)  # clear the output box
-            self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
             
-            # apply the hyperlinks to the phrases
-            hyperlink = HyperlinkManager(self.textbox2, self.url)
-            for link in all_hyperlinks:
-                self.textbox2.highlight_pattern(link,hyperlink)
-  
-            for k,keyword in enumerate(keywords.split(',')):
-                print(COLOR_LIST[k%len(COLOR_LIST)])
-                self.textbox2.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
-            self.textbox2.config(state=tk.DISABLED)
+            
+            
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                if 'Summarize' in question or self.boolean2.get() == 0:
-                    result, tokens, model = functions.promptText_question(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                if 'Summarize' in question or advance_search==False:
+                    response = functions.promptText_question(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                    tokens = response['usage']['total_tokens']
+                    model = response['model']
+                    answer = response['choices'][0]['text']
                 else:
-                    result, tokens, model = functions.promptText_question2(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                    response = functions.promptText_question2(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                    print(response)
+                    tokens = 0
+                    model = response['model'] #
+                    answer= response['answers'][0]
+                    phrase_to_sort= [(doc["score"],doc["text"]) for doc in response["selected_documents"]]
+                    phrase_with_frequency = sorted(phrase_to_sort, key=lambda x: x[0], reverse=True)
+                    #join the tuple in phrase_with_frequency
+                    phrase_with_frequency = [str(x[0])+x[1] for x in phrase_with_frequency]
                 self.update_token_usage(tokens, model) #update the token usage
-                self.textbox.insert(tk.END, result)  # insert the answer in the output box
+
+                self.textbox.insert(tk.END, answer)  # insert the answer in the output box
                 self.textbox.config(background="green") # change the background color of the output box
                 self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             except Exception as e:
@@ -332,6 +349,21 @@ class Application(tk.Frame):
                 self.textbox.config(background="red") # change the background color of the output box
                 self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             
+
+            # show the phrases in the output box
+            self.textbox2.config(state=tk.NORMAL)
+            self.textbox2.delete('1.0', tk.END)  # clear the output box
+            self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
+
+            # apply the hyperlinks to the phrases
+            hyperlink = HyperlinkManager(self.textbox2, self.url)
+            for link in all_hyperlinks:
+                self.textbox2.highlight_pattern(link,hyperlink)
+  
+            for k,keyword in enumerate(keywords.split(',')):
+                #print(COLOR_LIST[k%len(COLOR_LIST)])
+                self.textbox2.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
+            self.textbox2.config(state=tk.DISABLED)
         else:
             self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
         self.textbox.config(state=tk.DISABLED)

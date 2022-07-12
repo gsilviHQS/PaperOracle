@@ -2,6 +2,7 @@ import tkinter as tk
 import webbrowser 
 from functools import partial
 
+
 #UTILITIES for INTERFACE
 
 COLOR_LIST = ["red","cyan","green","magenta","orange","pink","brown"]
@@ -132,3 +133,21 @@ class Interlink(HyperlinkManager):
                     self.questionbox.config(background="green")
                     self.questionbox.after(200, lambda: self.questionbox.config(background="white"))
 
+class RightClicker: # Right clicker class
+    def __init__(self, event): # Initialize the right clicker
+        right_click_menu = tk.Menu(None, tearoff=0, takefocus=0) # takefocus=0 to avoid the menu to be closed when the mouse is over it, tearoff=0 to avoid the menu to be displayed as a separate window
+
+        for txt in ['Cut', 'Copy', 'Paste']: # Add the commands to the right click menu
+            right_click_menu.add_command( # Add the commands to the right click menu
+                label=txt, command=lambda event=event, text=txt: #e
+                self.right_click_command(event, text)) # Add the commands to the right click menu
+
+        right_click_menu.tk_popup(event.x_root + 40, event.y_root + 10, entry='0')
+        # to keep the menou open, we need to add the following line
+        # entry='0' to keep the menu open
+        # entry='1' to close the menu when the mouse is over it
+        # entry='2' to close the menu when the mouse is over it and the mouse button is released
+        # entry='3' to close the menu when the mouse is over it and the mouse button is released
+
+    def right_click_command(self, event, cmd):
+        event.widget.event_generate(f'<<{cmd}>>')

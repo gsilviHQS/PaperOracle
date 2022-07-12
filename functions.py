@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from collections import Counter
 
 MAX_LENGHT_PHRASE = 2000
-MAX_PHRASES_TO_SEARCH = 100
+MAX_PHRASES_TO_SEARCH = 200
 MAX_PHRASES_TO_USE = 7
 MAX_DISTANCE_BETWEEN_PHRASES = 3
 
@@ -100,6 +100,8 @@ def get_sections(texfiles):
         with open(texfile, 'r') as f:
             lines = f.readlines()
         for line in lines:
+            if line.startswith('\\begin{abstract}'):
+                sections.append('abstract'+'\n')
             #TODO: improve matching parenthesis in nested cases
             if line.startswith('\\section{'):
                 # extract the section name in between keywords \\section{ and }
@@ -225,9 +227,13 @@ def connect_adjacent_phrases(list_of_phrases):
                 new_phrases.append(list_of_phrases[i])
     return [ele[0] for ele in new_phrases] # remove info about positions
 
-def most_common_phrases(list_of_phrases):
+def most_common_phrases(list_of_phrases, use_more_phrase=False):
     """ Order the phrases by most common """
-    most_common_phrases = Counter(list_of_phrases).most_common(MAX_PHRASES_TO_USE)  # order phrases by most common, and limit to MAX_PHRASES_TO_USE
+    if use_more_phrase:
+        max_phrases =MAX_PHRASES_TO_SEARCH
+    else:
+        max_phrases = MAX_PHRASES_TO_USE
+    most_common_phrases = Counter(list_of_phrases).most_common(max_phrases)  # order phrases by most common, and limit to MAX_PHRASES_TO_USE
     return most_common_phrases
 
 def get_hyperlink(phrases, full_text):
@@ -236,7 +242,7 @@ def get_hyperlink(phrases, full_text):
     all_hyperlinks = []
     for phrase in phrases:
         citations = list(itertools.chain(*[ele.split(',') for ele in re.findall(pattern=r'\\cite{(.*?)}', string=phrase)])) # list of citations inside \cite{} for a give phrase
-        print("citations:", citations)
+        #print("citations:", citations)
         for cit in citations:
             hyperlink = link_patter_finder(cit, full_text) # find the arXiv hyperlink for a given citation
             if hyperlink is not None:
@@ -258,7 +264,7 @@ def link_patter_finder(cit, text):
     for pattern in patterns:
         res = re.search(pattern[0], raw_text, flags=pattern[1])
         if res is not None:
-            print('Match:',res.group(),res.group(1))
+            # print('Match:',res.group(),res.group(1))
             link = re.search(pattern[2], res.group(1), flags=pattern[1])
             if link is not None:
                 print('Link',link.group(1))
@@ -321,7 +327,7 @@ def promptText_question(question, inputtext, header, api_key):
         # stop=["\n"]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
-    return response['choices'][0]['text'] , response['usage']['total_tokens'], response['model']
+    return response
 
 def promptText_question2(question, inputtext, header, api_key):
 
@@ -329,10 +335,12 @@ def promptText_question2(question, inputtext, header, api_key):
     print('INPUT:\n', inputtext,question)
     response = openai.Answer.create(
         model=BEST_ENGINE,
+        search_model = "ada",
         documents = inputtext,
         question=question,
         temperature=0.1,
         max_tokens=1000,
+        max_rerank=MAX_PHRASES_TO_USE,
         examples_context = "In 2017, U.S. life expectancy was 78.6 years.",
         examples = [["What is human life expectancy in the United States?","78 years."]],
         # top_p=1,
@@ -342,7 +350,8 @@ def promptText_question2(question, inputtext, header, api_key):
     )
     print('\nOUTPUT:', response['answers'])
     print(response)
-    return response['answers'][0] , 0, response['model']
+    print([(doc["score"],doc["text"]) for doc in response["selected_documents"]])
+    return response
 
 
 
