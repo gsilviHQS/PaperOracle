@@ -1,4 +1,4 @@
-# PaperGenie
+# PaperOracle (for ArXiv papers)
 
 # API KEY 
 To use the program, you need an API key from OpenAI. You can create a free account at https://beta.openai.com/, which will give you 18$ to try it out for hundreds of trials. Once you have an account, you can create/find your APIKEY under Personal->View API Keys.
