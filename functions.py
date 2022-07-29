@@ -33,8 +33,7 @@ def getPaper(paper_url):
     Downloads a paper from it's arxiv page, download the tar file, extract the tex file, and return the text
     Search also for tex in bibtex file
     """
-    filename = paper_url.split(
-        '/')[-1]  # get the last part of the url, i.e. the numbers
+    filename = paper_url.split('/')[-1]  # get the last part of the url, i.e. the numbers
     filename = 'papers/' + filename
     if not os.path.exists(filename):  # if the directory doesn't exist
         os.mkdir(filename)  # create a directory

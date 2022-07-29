@@ -8,8 +8,14 @@ import os
 
 #MY FUNCTIONS
 import functions
+import embedding_functions
 from Tkinter_helper import CustomText, custom_paste, HyperlinkManager,Interlink,COLOR_LIST, RightClicker
-
+import sys
+import pandas as pd
+import numpy as np
+import openai
+sys.setrecursionlimit(10000)
+MAX_PHRASES_TO_USE = 7
 
 class Application(tk.Frame):
     def __init__(self, master=None):
@@ -20,9 +26,11 @@ class Application(tk.Frame):
                                    
 
     def create_widgets(self):
-        # make a folder if it doesn't exist
+        # make folders if it doesn't exist
         if not os.path.exists('papers'):
             os.makedirs('papers')
+        if not os.path.exists('embeddings'):
+            os.makedirs('embeddings')
         
         
         # variables
@@ -38,10 +46,6 @@ class Application(tk.Frame):
         self.papertitle = tk.StringVar()
         self.papertitle.set('\n')
 
-        self.default_paper = tk.StringVar()
-        
-        self.default_paper.set("Papers")
-        self.default_paper.trace("w", self.callback_to_url)
 
         # Column 0 widgets
         tk.Label(self.master, text="API Key").grid(row=0, column=0)
@@ -58,11 +62,17 @@ class Application(tk.Frame):
         tk.Label(self.master, textvariable=self.papertitle, wraplength=500).grid(row=5, column=0)
         
         
-        #option menu
-        self.check_papers_in_folder() #check if there are papers in the folder
-        if len(self.folders) > 0:
-            self.folder_menu = tk.OptionMenu(self.master, self.default_paper, *self.folders)
-            self.folder_menu.grid(row=3, column=0,sticky=tk.E)
+
+        #menu for embedding
+        self.default_embedding = tk.StringVar()
+        self.default_embedding.set("Embeddings")
+        self.default_embedding.trace("w", self.callback_to_embedding) #callback to update the url
+        self.check_embedding_in_folder() #check if there are embeddings in the folder
+        if len(self.embeddings) > 0:
+            self.embedding_menu = tk.OptionMenu(self.master, self.default_embedding, *self.embeddings)
+            self.embedding_menu.grid(row=4, column=0,sticky=tk.E)
+
+
 
         # section and subsection
         self.sections = CustomText(self.master, wrap=tk.WORD, width=70, height=50)
@@ -71,17 +81,13 @@ class Application(tk.Frame):
         
         
         #Column 1 widgets
-        tk.Label(self.master, text="Question").grid(row=0,column=1, columnspan=2)
+        tk.Label(self.master, text="Question").grid(row=1,column=1, columnspan=2)
         self.question = tk.Text(self.master, wrap=tk.WORD, width=70, height=2)
-        self.question.grid(row=1, column=1, columnspan=2)
+        self.question.grid(row=2, column=1, columnspan=2)
         self.question.bind('<Button-3>', RightClicker)
 
-        tk.Label(self.master, text="Keywords to search (separated by comma)").grid(row=2, column=1, columnspan=2)
-        self.keybox = tk.Text(self.master, wrap=tk.WORD, width=70, height=2)
-        self.keybox.grid(row=3, column=1, columnspan=2)
-        self.keybox.bind('<Button-3>', RightClicker)
-        tk.Label(self.master, text="Matching Phrases in tex files").grid(row=5, column=1, columnspan=2)
-        tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
+
+        
 
         #Column 2 widgets
         tk.Label(self.master, textvariable = self.token_label).grid(row=9, column=0 , sticky=tk.W)
@@ -89,6 +95,7 @@ class Application(tk.Frame):
         #Set defaults values
         # if api.txt exist then insert the content of api.txt into apikey entry else insert default value
         if os.path.isfile('API.csv'):
+            openai.api_key_path = "API.csv"
             with open('API.csv', 'r') as f:
                 self.apikey.insert(0, f.read())
         else:
@@ -107,7 +114,7 @@ class Application(tk.Frame):
         #add one button to save default url
         tk.Button(self.master, text='Set default URL', command=self.save_url).grid(row=3, column=0, sticky=tk.W)
         #add one button to save default question
-        tk.Button(self.master, text='Set default Question', command=self.save_question).grid(row=1, column=2, sticky=tk.E)
+        tk.Button(self.master, text='Set default Question', command=self.save_question).grid(row=2, column=2, sticky=tk.E)
 
 
        
@@ -137,23 +144,28 @@ class Application(tk.Frame):
                             borderwidth=2,
                             )
         
-       
+        tk.Label(self.master, text="Phrases in Tex").grid(row=5, column=1, columnspan=2)
+        tk.Label(self.master, text="Answer from GPT-3").grid(row=7, column=1, columnspan=2)
 
+        # add a slider to change the standard deviation, from 0 to 4 with label "Standard deviation"
+        self.std_dev = tk.IntVar()
+        self.std_dev.set(0)
+        self.std_dev_slider = tk.Scale(self.master, from_=0, to=4, orient=tk.HORIZONTAL, variable=self.std_dev)
+        self.std_dev_slider.grid(row=4, column=1, columnspan=2)
+        self.std_dev_slider.bind('<Button-3>', RightClicker)
+        tk.Label(self.master, text="Standard deviation").grid(row=3, column=1,columnspan=2)
+        self.std_dev_slider.set(2)
+        
 
         #BUTTONS
         #button under url box named "Get paper"
-        tk.Button(self.master, text='Get paper', command=self.get_paper).grid(row=4, column=0)
+        tk.Button(self.master, text='Get paper and create embedding', command=self.get_paper).grid(row=4, column=0)
 
         tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=10, column=0, sticky=tk.W)                     
 
-        tk.Button(self.master, text="Generate keywords from question", command=self.search_keywords).grid(row=4,
-                                                                                          column=1, columnspan=2)
+       
 
-        self.boolean2 = tk.IntVar()
-        self.boolean2.set(1)
-        self.advance_prompt = tk.Checkbutton(self.master, text="Use advanced prompt", variable=self.boolean2).grid(row=9, 
-                                                                                                     column=1, 
-                                                                                                     sticky=tk.E)
+
         
 
         tk.Button(self.master, text='Run', command=self.run).grid(row=10,
@@ -173,8 +185,18 @@ class Application(tk.Frame):
         self.url.insert(0,url_to_use)
         self.get_paper()
 
+    def callback_to_embedding(self,*args):
+        self.url.delete(0, tk.END)
+        url_to_use = "http://arxiv.org/abs/"+self.default_embedding.get()
+        self.url.insert(0,url_to_use)
+        self.embedding_to_use = "embeddings/"+self.default_embedding.get()
+        self.get_embedding()
+
     def check_papers_in_folder(self):
         self.folders = list(os.listdir('papers/'))
+    
+    def check_embedding_in_folder(self):
+        self.embeddings = list(os.listdir('embeddings/'))
 
     def reset_token_usage(self):
         self.token_usage.set(0)
@@ -218,76 +240,99 @@ class Application(tk.Frame):
 
         self.token_label.set('Usage: '+str(total_token_used)+' tokens ($'+"{:3.5f}".format(total_dollars_used)+')') #update the token usage label
 
+    def get_paper_and_embedding(self):
+        self.get_paper()
+        self.get_embedding()
+        
+
+    def get_embedding(self):
+        path = 'embeddings/'
+        if hasattr(self, 'embedding_to_use'):
+            path += self.embedding_to_use
+        else:
+            path += self.url.get().split('/')[-1]
+        path += '/text-search-babbage-doc-001.csv'
+        df = pd.read_csv(path, index_col=0)
+        df['similarity'] = df.similarity.apply(eval).apply(np.array)
+        df['search'] = df.search.apply(eval).apply(np.array)
+        self.df = df
+        
+            # apply the hyperlinks to the phrases
+
+        
+
     def get_paper(self):
         """ Get the paper from the url """
+        # EXTRACT THE PAPER FIRST FROM THE URL
         url = self.url.get()  # get the url from the entry box
         tex_files,bibfiles = functions.getPaper(url)  # get the paper from arxiv
         print('tex_files found:', tex_files)
-        self.complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
+        complete_text = functions.extract_all_text(tex_files)  # extract the text from the paper
+        final_text = embedding_functions.texStripper(complete_text)
+        self.complete_text = " ".join(final_text['full'])
         self.bib_text = functions.extract_all_text(bibfiles)  # extract the text from the bib file
+
+        # OBTAIN THE EMBEDDING FROM THE PHRASES IN THE PAPER
+        emb_folder='embeddings'
+        filename = url.split('/')[-1]
+        if not os.path.exists(emb_folder+'/'+filename):
+            os.makedirs(emb_folder+'/'+filename)
+            df = pd.DataFrame(final_text['full'], columns=['Phrase'])
+            df2 = embedding_functions.save_embedding(df,filename,emb_folder)
+            self.df = df2
+        else:
+            self.get_embedding()
+            print('embedding already exists')
+        
         print('bib_text found:', bibfiles)
+
+        # SET THE INFO ON SCREEN
         header = functions.getTitleOfthePaper(url) #get the title of the paper
         self.papertitle.set(header)  # set the papertitle label
         self.last_url = url  # save the last url
         #find section and subsection of the paper
-        list_of_section = functions.get_sections(tex_files)
+        list_of_section = final_text['sections']
         list_of_section = functions.remove_duplicates(list_of_section, simplecase=True)
         print(list_of_section)
         self.sections.delete(1.0, tk.END)
-        interlink = Interlink(self.sections, self.keybox, self.question)
+        # interlink = Interlink(self.sections, self.keybox, self.question)
         for i in list_of_section:
-            self.sections.insert(tk.END, i)
+            self.sections.insert(tk.END, i+'\n')
             # apply the hyperlinks to the phrases
-            self.sections.highlight_pattern(i,interlink)
-        
-        
+            # self.sections.highlight_pattern(i,interlink)
 
-    def search_keywords(self):
-        api_key = self.apikey.get()
-        question = self.question.get("1.0", tk.END)
-        keywords, tokens, model = functions.promptText_keywords(question, api_key)
-        self.update_token_usage(tokens, model)
-        keywords = keywords.strip().strip('\n') #remove the newline character from the keywords
-        # show keywords in the output box
-        self.keybox.config(state=tk.NORMAL)
-        # clear keybox
-        self.keybox.delete(1.0, tk.END)  # clear the output box
-        self.keybox.insert(tk.END, keywords)  # insert keywords in the keybox
-        print('Keywords to use:', repr(keywords))
-        return keywords
 
     def run(self):
         api_key = self.apikey.get()  # get the api key from the entry box
         question = self.question.get("1.0", tk.END)  # get the question from the entry box
 
 
-        if self.last_url != self.url.get():  # if the url has changed
-            self.get_paper()  # download the paper
-        #TODO: apply the hyperlinks to the papertitle label, first change to a custom textbox
-        
-        #HANDLE THE KEYWORDS
-        keywords = self.keybox.get("1.0", tk.END).strip()  # get the keywords from the output box        
-        if keywords == '':  # if the keywords are not provided, promt GPT to generate them from the question
-            keywords = self.search_keywords()
-        print('Keywords in use:',keywords)
 
+
+        if self.last_url != self.url.get():  # if the url has changed
+            self.get_paper_and_embedding()  # download the paper
+        
+        if self.df is None:
+            self.get_embedding()
+ 
         # Get list_of_phrases from the text
         list_of_phrases = []
-        number_of_phrases = 0
-        
-        for keyword in keywords.split(','):  # loop through the keywords
-            phrase, stop, number_of_phrases = functions.extract_phrases(keyword.strip(), self.complete_text, api_key, number_of_phrases)
-            
-            if phrase is not None:
-                list_of_phrases.extend(phrase)
-                print('For keyword \'' + keyword + '\' the phrases found are:', len(phrase))
-            else:
-                print('For keyword \'' + keyword + '\' no phrase found')
-                # # try lower case TODO: Improve lower/upper/plural/singular handling all in once
-                    
-            if stop:
-                break  # if the stop flag is set, break the loop
-      
+        # get the value of stadard_deviation from the slider
+        standard_deviation = self.std_dev.get()
+        _,newres = embedding_functions.search_phrases(self.df, question, how_many_std=standard_deviation,connect_adj=True)
+        list_of_phrases = newres.Phrase.tolist()
+        list_of_similarity = newres.query_doc_similarities.round(3).tolist()
+        # take only the first 5 phrases
+        if len(list_of_phrases) > MAX_PHRASES_TO_USE:
+            list_of_phrases = list_of_phrases[:MAX_PHRASES_TO_USE]
+            list_of_similarity = list_of_similarity[:MAX_PHRASES_TO_USE]
+
+        # combine each phrase with its similarity
+        list_of_phrases_with_similarity = []
+        for i in range(len(list_of_phrases)):
+            list_of_phrases_with_similarity.append("("+str(list_of_similarity[i])+") "+list_of_phrases[i])
+
+
 
 
         # Initialize the textbox to receive the generated text
@@ -295,28 +340,11 @@ class Application(tk.Frame):
         self.textbox.delete(1.0, tk.END)
 
         if len(list_of_phrases) > 0: #if there are phrases!
-            if self.boolean2.get() == 0:
-                advance_search = False
-            else:
-                advance_search = True
-            #print('list_of_phrases',list_of_phrases)
-            # Here the code check if the user wants to use the check for relevance of each phrase,
-            # otherwise it will just order phrases by most common according to keywords appearance
-            # and limit the number to PHRASES_TO_USE (defined in functions.py)
-
-            list_of_phrases = functions.connect_adjacent_phrases(list_of_phrases)  # connect adjacent phrases
-            clean_list_of_phrases = functions.most_common_phrases(list_of_phrases,advance_search) # get the most common phrases
-           
-
-            just_phrases = []
-            phrase_with_frequency = []
-            for phrase in clean_list_of_phrases:
-                just_phrases.append(phrase[0])
-                phrase_with_frequency.append('('+str(phrase[1])+')'+phrase[0])
-
-            #substitue in the phrases the \cite with the hyperlink to arxiv
-            phrase_with_frequency, all_hyperlinks = functions.get_hyperlink(phrase_with_frequency, self.complete_text+self.bib_text)
-
+            list_of_phrases_with_similarity, all_hyperlinks = functions.get_hyperlink(list_of_phrases_with_similarity, self.complete_text+self.bib_text)
+             # show the phrases in the output box
+            self.textbox2.config(state=tk.NORMAL)
+            self.textbox2.delete('1.0', tk.END)  # clear the output box
+            self.textbox2.insert(tk.END, '-'+'\n-'.join(list_of_phrases_with_similarity))  # insert phrases in the textbox
             
             
             
@@ -324,21 +352,11 @@ class Application(tk.Frame):
             
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                if 'Summarize' in question or advance_search==False:
-                    response = functions.promptText_question(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
-                    tokens = response['usage']['total_tokens']
-                    model = response['model']
-                    answer = response['choices'][0]['text']
-                else:
-                    response = functions.promptText_question2(question, just_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
-                    print(response)
-                    tokens = 0
-                    model = response['model'] #
-                    answer= response['answers'][0]
-                    phrase_to_sort= [(doc["score"],doc["text"]) for doc in response["selected_documents"]]
-                    phrase_with_frequency = sorted(phrase_to_sort, key=lambda x: x[0], reverse=True)
-                    #join the tuple in phrase_with_frequency
-                    phrase_with_frequency = [str(x[0])+x[1] for x in phrase_with_frequency]
+                response = functions.promptText_question(question, list_of_phrases, self.papertitle.get(), api_key) #ask GPT-3 to give the answer
+                tokens = response['usage']['total_tokens']
+                model = response['model']
+                answer = response['choices'][0]['text']
+                
                 self.update_token_usage(tokens, model) #update the token usage
 
                 self.textbox.insert(tk.END, answer)  # insert the answer in the output box
@@ -350,22 +368,19 @@ class Application(tk.Frame):
                 self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             
 
-            # show the phrases in the output box
-            self.textbox2.config(state=tk.NORMAL)
-            self.textbox2.delete('1.0', tk.END)  # clear the output box
-            self.textbox2.insert(tk.END, '-'+'\n-'.join(phrase_with_frequency))  # insert phrases in the textbox
+           
 
             # apply the hyperlinks to the phrases
             hyperlink = HyperlinkManager(self.textbox2, self.url)
             for link in all_hyperlinks:
                 self.textbox2.highlight_pattern(link,hyperlink)
   
-            for k,keyword in enumerate(keywords.split(',')):
-                #print(COLOR_LIST[k%len(COLOR_LIST)])
-                self.textbox2.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
+            # for k,keyword in enumerate(keywords.split(',')):
+            #     #print(COLOR_LIST[k%len(COLOR_LIST)])
+            #     self.textbox2.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
             self.textbox2.config(state=tk.DISABLED)
         else:
-            self.textbox.insert(tk.END, 'No phrases found in the paper matching the keywords. Try different keywords.')
+            self.textbox.insert(tk.END, 'No phrases found in the paper.')
         self.textbox.config(state=tk.DISABLED)
 
 

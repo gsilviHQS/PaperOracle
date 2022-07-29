@@ -55,7 +55,8 @@ def texStripper(complete_text):
                     text_keys[keyword] = [content]
                 else:
                     text_keys[keyword].append(content)
-
+        elif line.startswith("\\begin{document"):
+            continue # the continue keyword is used to skip the current iteration of the loop
         elif line.startswith("\\begin{"):
             in_document = True
             first_division = line.split('{')
@@ -92,23 +93,38 @@ def texStripper(complete_text):
     print(text_sections.keys())
 
     final_text = {}
-    final_text['full'] =[]
+    final_text['sections'] = list(text_sections.keys())
+    final_text['complete'] =[]
+    final_text['full'] = []
     # append general info
     for key in text_keys:
         if key in ['title','author','email','thanks','affiliation']:
-            #append on top of the list,code: final_text['full'].insert(0,text_keys[key][0])
-            final_text['full'].append(key+": "+",".join(text_keys[key]))
+            #append on top of the list,code: final_text['complete'].insert(0,text_keys[key][0])
+            final_text['complete'].append(key+": "+",".join(text_keys[key]))
     # append abstract (if exists)
     if 'abstract' in text_keys.keys():
-        final_text['full'].append('abstract: '+ " ".join(text_keys['abstract' ]))
+        final_text['complete'].append('abstract: '+ " ".join(text_keys['abstract' ]))
     # append sections
     for sec in text_sections.keys():
         if sec !='pre_section':
             print(sec)
             for phrase in text_sections[sec].split('. '):
                 if phrase !='':
-                    final_text['full'].append(phrase)
+                    final_text['complete'].append(phrase)
     
+    #looop over fainal_text['complete'] and check length of each phrase
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+    for phrase in final_text['complete']:
+        if len(tokenizer.encode(phrase))>2000:
+            phrase = phrase.split('.')
+            if len(phrase)>1:
+                for p in phrase:
+                    final_text['full'].append(p)
+
+        else:
+            final_text['full'].append(phrase)
+
 
     return final_text
 
@@ -145,96 +161,37 @@ def combine_similar_phrases(df):
 
 
 
-
-
-
-
-
-
-
-
 # EMBEDDING FUNCTIONS
 
 
-def save_embedding(df,filename, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001'):
+def save_embedding(df,filename,std_folder, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001'):
     """
     Save the embedding of the phrases in a csv file
     """
-    std_folder='embeddings'
-    if not os.path.exists(std_folder):
-        os.makedirs(std_folder)
-
-    complete_filename = std_folder+'/'+engine_sim+'_'+str(filename)+'.csv'
-    if not os.path.exists(complete_filename):
-        df['similarity'] = df.Phrase.apply(lambda x: get_embedding(x, engine=engine_sim))
-        df.to_csv(complete_filename) #first save the similarity alone
-    else:
-        print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
     
-    complete_filename = std_folder+'/'+engine_search+'_'+str(filename)+'.csv'
+    # complete_filename = std_folder+'/'+filename+'/'+engine_sim+'.csv'
+    # print('Saving similarity embeddings to',complete_filename)
+    # if not os.path.exists(complete_filename):
+
+    #     df['similarity'] = df.Phrase.apply(lambda x: get_embedding(x, engine=engine_sim))
+    #     df.to_csv(complete_filename) #first save the similarity alone
+    # else:
+    #     print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
+    
+    complete_filename = std_folder+'/'+filename+'/'+engine_search+'.csv'
+    print('Saving search embeddings to',complete_filename)
     if not os.path.exists(complete_filename):
-        combine_similar_phrases(df)
+        # combine_similar_phrases(df)
         df['search'] = df.Phrase.apply(lambda x: get_embedding(x, engine= engine_search))
         
         df.to_csv(complete_filename) #the savewith search embedding
     else:
         print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
+    return df
     
 
 
-def expand_knowledge(df, res, embedding_question, how_many_std=1,  pprint=True):
 
-    # make a copy of res dataframe called new_res
-    new_res = res.copy()
-    print('\n Expanding knowledge\n')
-    def concatenate_phrases(phraseA, phraseB, sign):
-        if sign == 1:
-            return phraseA + '. ' + phraseB
-        elif sign == -1:
-            return phraseB + '. ' + phraseA
-        else:
-            return 'Error'
-    mean = df.query_doc_similarities.mean()
-    std = df.query_doc_similarities.std()
-    filter_to_use = mean + how_many_std*std #select the filter to use
-
-    #top phrase Id and embedding, and the similarity with the question
-    for id_top_phrase in res['Unnamed: 0'].to_list():
-    # id_top_phrase = res.iloc[0]['Unnamed: 0']
-        embedding_top_phrase = df.search.loc[id_top_phrase]
-        last_compare_sim =cosine_similarity(embedding_top_phrase, embedding_question)
-        if pprint:
-            print('phrase to consider:', df.Phrase.loc[id_top_phrase])
-            print('top phrase simil.:',last_compare_sim)
-        number_of_prases = 1
-        new_phrase = df.Phrase.loc[id_top_phrase]
-        for sign in [1,-1]: #go forward and backward
-            elemement_to_consider = id_top_phrase
-            while True:
-                elemement_to_consider += sign
-                sim = df.loc[elemement_to_consider].query_doc_similarities
-                if sim > filter_to_use and number_of_prases<5: # if the similarity is greater than the first deviation
-                    number_of_prases += 1
-                    new_phrase_test = concatenate_phrases(new_phrase,df.loc[elemement_to_consider].Phrase,sign)
-                    if pprint:
-                        print('Nuova frase:\n',new_phrase_test)
-                    embedding_new_long_phrase = get_embedding(new_phrase_test, engine='text-search-babbage-doc-001')
-                    
-                    compare_cos_sim = cosine_similarity(embedding_new_long_phrase, embedding_question)
-                    if pprint:
-                        print(' new phrase sim:',compare_cos_sim)
-                    if compare_cos_sim >last_compare_sim:
-                        last_compare_sim = compare_cos_sim
-                        new_phrase = new_phrase_test
-                    else:
-                        break
-
-                
-                else:
-                    break
-        new_res.loc[id_top_phrase, 'Phrase'] = new_phrase
-        new_res.loc[id_top_phrase,'query_doc_similarities'] = last_compare_sim
-    return new_res
 
 def connect_adjacents_phrases(df):
     """connect adjactent phrases in the dataframe"""
@@ -268,8 +225,10 @@ def search_phrases(df, question, how_many_std=2, engine_search_query ='text-sear
     std = df.query_doc_similarities.std()
     filter_to_use = mean + how_many_std*std #select the filter to use, which means keep the phrase with similarity greater than the filter
     # sort the dataframe by similarity, and keep all with similarity greater than the filter
-    df = df.sort_values(by='query_doc_similarities', ascending=False)
+    #TODO: switch the two lines below
     newres = df[df.query_doc_similarities > filter_to_use]
+    newres = newres.sort_values(by='query_doc_similarities', ascending=False)
+    
     # if there are no phrases with similarity greater than the filter, return the phrase with the highest similarity
     if len(newres) == 0:
         max_value = df.query_doc_similarities.max()
