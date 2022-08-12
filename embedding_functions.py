@@ -56,9 +56,9 @@ def texStripper(complete_text):
                 else:
                     text_keys[keyword].append(content)
         elif line.startswith("\\begin{document"):
-            continue # the continue keyword is used to skip the current iteration of the loop
-        elif line.startswith("\\begin{"):
             in_document = True
+            continue # the continue keyword is used to skip the current iteration of the loop
+        elif line.startswith("\\begin{") and in_document:
             first_division = line.split('{')
             second_division = first_division[1].split('}')
             keyword = second_division[0]
@@ -96,6 +96,7 @@ def texStripper(complete_text):
     final_text['sections'] = list(text_sections.keys())
     final_text['complete'] =[]
     final_text['full'] = []
+    final_text['tokens'] = 0
     # append general info
     for key in text_keys:
         if key in ['title','author','email','thanks','affiliation']:
@@ -112,11 +113,12 @@ def texStripper(complete_text):
                 if phrase !='':
                     final_text['complete'].append(phrase)
     
-    #looop over fainal_text['complete'] and check length of each phrase
+    #looop over final_text['complete'] and check length of each phrase
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
 
     for phrase in final_text['complete']:
-        if len(tokenizer.encode(phrase))>2000:
+        tokens = len(tokenizer.encode(phrase))
+        if tokens>2000:
             phrase = phrase.split('.')
             if len(phrase)>1:
                 for p in phrase:
@@ -124,6 +126,7 @@ def texStripper(complete_text):
 
         else:
             final_text['full'].append(phrase)
+        final_text['tokens'] += tokens
 
 
     return final_text
@@ -164,7 +167,41 @@ def combine_similar_phrases(df):
 # EMBEDDING FUNCTIONS
 
 
-def save_embedding(df,filename,std_folder, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001'):
+def compute_price_search_doc_embedding(tokens, embedding_model):
+    if embedding_model == 'text-search-davinci-doc-001': #if the model is davinci
+        dollars = tokens * (0.6/1000)
+    elif embedding_model == 'text-search-curie-doc-001': #if the model is curie
+        dollars = tokens * (0.06/1000)
+    elif embedding_model == 'text-search-babbage-doc-001': #if the model is babbage
+        dollars = tokens * (0.012/1000)
+    elif embedding_model =='text-search-ada-doc-001': #if the model is ada
+        dollars = tokens * (0.008/1000)
+    else:
+        dollars = 0
+    return dollars
+
+def compute_price_search_query_embedding(question, embedding_model):
+    """
+    Compute the price of a query given the embedding model
+    and obtain the embedding of the query.
+    """
+    embedding_question = get_embedding(question, engine=embedding_model)
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    tokens = len(tokenizer.encode(question))
+    if embedding_model == 'text-search-davinci-query-001': #if the model is davinci
+        dollars = tokens * (0.6/1000)
+    elif embedding_model == 'text-search-curie-query-001': #if the model is curie
+        dollars = tokens * (0.06/1000)
+    elif embedding_model == 'text-search-babbage-query-001': #if the model is babbage
+        dollars = tokens * (0.012/1000)
+    elif embedding_model =='text-search-ada-query-001': #if the model is ada
+        dollars = tokens * (0.008/1000)
+    else:
+        dollars = 0
+    return embedding_question,tokens,dollars
+
+
+def save_embedding(df,filename,std_folder,tokens=0, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001', ):
     """
     Save the embedding of the phrases in a csv file
     """
@@ -178,16 +215,29 @@ def save_embedding(df,filename,std_folder, engine_sim = 'text-similarity-babbage
     # else:
     #     print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
     
-    complete_filename = std_folder+'/'+filename+'/'+engine_search+'.csv'
+    complete_filename = std_folder+filename+'/'+engine_search+'.csv'
     print('Saving search embeddings to',complete_filename)
+    #loop over the phrase in df and compute the cost
+    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+    dollars = 0
+    total_tokens = 0
+    
+
     if not os.path.exists(complete_filename):
         # combine_similar_phrases(df)
         df['search'] = df.Phrase.apply(lambda x: get_embedding(x, engine= engine_search))
-        
         df.to_csv(complete_filename) #the savewith search embedding
+        for i,phrase in df.iterrows():
+            if i == 0:
+                continue
+            tokens = len(tokenizer.encode(phrase.Phrase))
+            total_tokens += tokens
+            dollars+= compute_price_search_doc_embedding(tokens, engine_search)
     else:
         print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
-    return df
+        dollars = 0
+        total_tokens = 0
+    return df,dollars,total_tokens
     
 
 
@@ -215,36 +265,33 @@ def connect_adjacents_phrases(df):
             continue
     return df
 
-def search_phrases(df, question, how_many_std=2, engine_search_query ='text-search-babbage-query-001' ,pprint=True, connect_adj=True):
+def search_phrases(df, embedding_question, how_many_std=2, pprint=False, connect_adj=True):
     """
     Search the phrases relevant for the question"""
-    embedding_question = get_embedding(question, engine=engine_search_query)
+    
+    # Compute the similarity of the question with the phrases in the dataframe
     df['query_doc_similarities'] = df.search.apply(lambda x: cosine_similarity(x, embedding_question))
 
     mean = df.query_doc_similarities.mean()
     std = df.query_doc_similarities.std()
     filter_to_use = mean + how_many_std*std #select the filter to use, which means keep the phrase with similarity greater than the filter
-    # sort the dataframe by similarity, and keep all with similarity greater than the filter
-    #TODO: switch the two lines below
+    # Filter the phrases with similarity greater than the filter
     newres = df[df.query_doc_similarities > filter_to_use]
-    newres = newres.sort_values(by='query_doc_similarities', ascending=False)
     
     # if there are no phrases with similarity greater than the filter, return the phrase with the highest similarity
     if len(newres) == 0:
         max_value = df.query_doc_similarities.max()
         newres = df[df.query_doc_similarities == max_value]
-    print('Mean',mean,'1 std',mean+std,'2 std',mean+2*std ,'Filter similarity:', filter_to_use)
-    #res = df.sort_values('query_doc_similarities', ascending=False).head(n)
-    #call to function paused for now:
+
     if connect_adj and len(newres)>1:
         newres = connect_adjacents_phrases(newres)
+    newres = newres.sort_values(by='query_doc_similarities', ascending=False)
     #newres = expand_knowledge(df, newres, embedding_question, 1, pprint=False)
     
-    
-    
     if pprint:
+        print('Mean',mean,'1 std',mean+std,'2 std',mean+2*std ,'Filter similarity:', filter_to_use)
         # loop over Phrase and query_doc_similarities columns
         for i, row in newres.iterrows():
             print(row.Phrase, row.query_doc_similarities)
             print()
-    return df,newres
+    return newres

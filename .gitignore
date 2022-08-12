@@ -1,6 +1,7 @@
 papers/
 build/
 dist/
+embeddings/
 *.csv
 *.pyc
 *.swp
@@ -12,3 +13,4 @@ Paper_questioner.ipynb
 *makeExe.sh*
 *.png
 *.pdf
+history.json

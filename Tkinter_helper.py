@@ -14,7 +14,11 @@ def custom_paste(event):
             pass
         event.widget.insert("insert", event.widget.clipboard_get())
         return "break"
-
+class WrappingCheckbutton(tk.Checkbutton):
+    '''a type of Checkbutton that automatically adjusts the wrap to the size'''
+    def __init__(self, master=None, **kwargs):
+        tk.Checkbutton.__init__(self, master, **kwargs)
+        self.bind('<Configure>', lambda e: self.config(wraplength=310))
 class CustomText(tk.Text):
     '''A text widget with a new method, highlight_pattern()
     '''

@@ -1,3 +1,3 @@
 #!/bin/bash
-conda activate PaperGenie
+conda activate PaperOracle
 pyinstaller UI.py

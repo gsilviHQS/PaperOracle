@@ -274,6 +274,18 @@ def link_patter_finder(cit, text):
     
 ####################### GPT-3 functions #######################
 
+def compute_price_completion(tokens, model):
+    if model == 'text-davinci-002': #if the model is davinci
+        dollars = tokens * (0.06/1000)
+    elif model == 'text-curie-006': #if the model is curie
+        dollars = tokens * (0.006/1000)
+    elif model == 'text-babbage-001': #if the model is babbage
+        dollars = tokens * (0.0012/1000)
+    elif model =='text-ada-001': #if the model is ada
+        dollars = tokens * (0.0008/1000)
+    else:
+        dollars = 0
+    return dollars
 
 def promptText_keywords(question, api_key):
     """ Prompt the question to gpt and return the keywords """
@@ -301,18 +313,18 @@ def promptText_keywords(question, api_key):
     return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 
-def promptText_question(question, inputtext, header, api_key):
+def promptText_question(question, inputtext, last_qa,n_papers, api_key):
     inputtext =  '-'+'\n-'.join(inputtext)
     openai.api_key = api_key
-    # if the question doesn't end with a question mark, then is likely a command, add a period
-    if question[:-1] != '?':
-        question += '.'
+    if last_qa is None:
+        last_qa = ''
     # PROMPT HERE
-    prompt = header +\
-        "\n\n Phrases:\n" +\
+    prompt = last_qa+\
+        "\n#CONTEXT: "+str(n_papers)+" Papers#:\n" +\
         inputtext +\
-        "\n\n Prompt:From the Phrases above, provide a detailed answer to the question: " +\
-        question + "\n If you are not sure say 'I am not sure but I think' and then try to answer:'\n"
+        "\n ##\nPrompt:from the context, provide a detailed answer to the question: You:" +\
+        question.strip('\n') +\
+        "\n If you are not sure say 'I am not sure but I think' and then try to answer:'\n GPT3:"
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
