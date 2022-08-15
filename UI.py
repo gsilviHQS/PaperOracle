@@ -169,7 +169,7 @@ class Application(tk.Frame):
 
         #BUTTONS
         #button under url box named "Get paper"
-        tk.Button(self.master, text='Get paper and create embedding', command=self.get_paper).grid(row=4, column=0)
+        tk.Button(self.master, text='Get paper and create embedding', command=self.pre_confirm_paper).grid(row=4, column=0)
 
         tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=10, column=0, sticky=tk.W)                     
 
@@ -195,11 +195,11 @@ class Application(tk.Frame):
             os.makedirs('embeddings')
 
         
-    def callback_to_url(self,*args):
-        self.url.delete(0, tk.END)
-        url_to_use = "http://arxiv.org/abs/"+self.default_paper.get()
-        self.url.insert(0,url_to_use)
-        self.get_paper()
+    # def callback_to_url(self,*args):
+    #     self.url.delete(0, tk.END)
+    #     url_to_use = "http://arxiv.org/abs/"+self.default_paper.get()
+    #     self.url.insert(0,url_to_use)
+    #     self.get_paper()
 
     # def callback_to_embedding(self,*args):
     #     self.url.delete(0, tk.END)
@@ -340,6 +340,38 @@ class Application(tk.Frame):
                 info = json.load(f)
                 self.all_info.append(info)
 
+    def pre_confirm_paper(self):
+        url = self.url.get()  # get the url from the entry box
+        self.save_url()
+
+        title,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
+        # open a new window to show the title and abstract of the paper
+        self.titleabstract = tk.Toplevel(self.master)
+        self.titleabstract.geometry('800x600')
+        # insert the title of the paper
+        self.titleabstract.title(title)
+        # insert the abstract of the paper
+        self.textabstract = tk.Text(self.titleabstract, height=40, width=80)
+        self.textabstract.pack()
+        self.textabstract.insert("1.0", 'Title: \n'+title)
+        self.textabstract.insert("end", '\n\n')
+        self.textabstract.insert("end", 'Abstract: \n'+abstract)
+        # insert the url of the paper
+        self.textabstract.insert("end", "\n\n")
+        self.textabstract.insert("end", "URL: "+url)
+        # insert a button below the abstract to confirm the paper
+        self.confirm = tk.Button(self.titleabstract, text="Confirm", command=self.confirm_paper)
+        self.confirm.pack()
+
+    def confirm_paper(self):
+        """
+        Confirm the paper and get the embedding
+        """
+        print('Paper confirmed')
+        self.get_paper()
+        self.titleabstract.destroy()
+        
+
         
 
     def get_paper(self):
@@ -353,7 +385,10 @@ class Application(tk.Frame):
         url = self.url.get()  # get the url from the entry box
         self.save_url()
 
-        header = functions.getTitleOfthePaper(url) #get the title of the paper
+        header,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
+
+        # wait for the user to confirm the paper
+
         self.papertitle.set("embedding...\n"+header)  # set the papertitle label
         self.master.update()
         tex_files,bibfiles = functions.getPaper(url)  # get the paper from arxiv

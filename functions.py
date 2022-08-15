@@ -26,7 +26,10 @@ def getTitleOfthePaper(paper_url):
     r = requests.get(paper_url)
     soup = BeautifulSoup(r.text, "html.parser")
     title = soup.find("title").string
-    return title
+    # to get the abstract, we need to find the div with class 'abs'
+    abstract = soup.find('meta', attrs={'name':'citation_abstract'})['content']
+    
+    return title,abstract
 
 def getPaper(paper_url):
     """
