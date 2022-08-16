@@ -323,11 +323,10 @@ def promptText_question(question, inputtext, last_qa,n_papers, api_key):
         last_qa = ''
     # PROMPT HERE
     prompt = last_qa+\
-        "\n#CONTEXT: "+str(n_papers)+" Papers#:\n" +\
+        "\n#CONTEXT: Phrases from "+str(n_papers)+" papers#:\n" +\
         inputtext +\
-        "\n ##\nPrompt:from the context, provide a detailed answer to the question: You:" +\
-        question.strip('\n') +\
-        "\n If you are not sure say 'I am not sure but I think' and then try to answer:'\n GPT3:"
+        "\n ##\nPrompt:from the context, answer the following:'\n"+\
+        question.strip('\n')
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
@@ -338,34 +337,35 @@ def promptText_question(question, inputtext, last_qa,n_papers, api_key):
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
+        logprobs=1,
         # stop=["\n"]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
     return response
 
-def promptText_question2(question, inputtext, header, api_key):
+# def promptText_question2(question, inputtext, header, api_key):
 
-    openai.api_key = api_key
-    print('INPUT:\n', inputtext,question)
-    response = openai.Answer.create(
-        model=BEST_ENGINE,
-        search_model = "ada",
-        documents = inputtext,
-        question=question,
-        temperature=0.1,
-        max_tokens=1000,
-        max_rerank=MAX_PHRASES_TO_USE,
-        examples_context = "In 2017, U.S. life expectancy was 78.6 years.",
-        examples = [["What is human life expectancy in the United States?","78 years."]],
-        # top_p=1,
-        # frequency_penalty=0,
-        # presence_penalty=0,
-        # stop=["\n"]
-    )
-    print('\nOUTPUT:', response['answers'])
-    print(response)
-    print([(doc["score"],doc["text"]) for doc in response["selected_documents"]])
-    return response
+#     openai.api_key = api_key
+#     print('INPUT:\n', inputtext,question)
+#     response = openai.Answer.create(
+#         model=BEST_ENGINE,
+#         search_model = "ada",
+#         documents = inputtext,
+#         question=question,
+#         temperature=0.1,
+#         max_tokens=1000,
+#         max_rerank=MAX_PHRASES_TO_USE,
+#         examples_context = "In 2017, U.S. life expectancy was 78.6 years.",
+#         examples = [["What is human life expectancy in the United States?","78 years."]],
+#         # top_p=1,
+#         # frequency_penalty=0,
+#         # presence_penalty=0,
+#         # stop=["\n"]
+#     )
+#     print('\nOUTPUT:', response['answers'])
+#     print(response)
+#     print([(doc["score"],doc["text"]) for doc in response["selected_documents"]])
+#     return response
 
 
 

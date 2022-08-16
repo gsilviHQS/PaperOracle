@@ -18,7 +18,7 @@ class WrappingCheckbutton(tk.Checkbutton):
     '''a type of Checkbutton that automatically adjusts the wrap to the size'''
     def __init__(self, master=None, **kwargs):
         tk.Checkbutton.__init__(self, master, **kwargs)
-        self.bind('<Configure>', lambda e: self.config(wraplength=310))
+        self.bind('<Configure>', lambda e: self.config(wraplength=300))
 class CustomText(tk.Text):
     '''A text widget with a new method, highlight_pattern()
     '''

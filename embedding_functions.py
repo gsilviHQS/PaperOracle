@@ -28,7 +28,7 @@ def texStripper(complete_text):
         elif complete_text[l+1].startswith('%'):
             return extract_begin_to_end(complete_text,l+1,keyword)
         else:
-            return complete_text[l+1]+extract_begin_to_end(complete_text,l+1,keyword)
+            return complete_text[l+1]+' '+extract_begin_to_end(complete_text,l+1,keyword)
 
     def loop_over(segments, opening, closing):
         if closing in segments[0]:
@@ -38,7 +38,7 @@ def texStripper(complete_text):
 
 
     text_sections = {}
-    text_sections['pre_section'] = []
+    text_sections['unnamed section'] = []
     text_keys = {}
     text_keys['plain text'] = []
     in_document = False
@@ -58,6 +58,10 @@ def texStripper(complete_text):
         elif line.startswith("\\begin{document"):
             in_document = True
             continue # the continue keyword is used to skip the current iteration of the loop
+        elif line.startswith("\\end{document"):
+            in_document = False
+            in_section = False
+            continue
         elif line.startswith("\\begin{") and in_document:
             first_division = line.split('{')
             second_division = first_division[1].split('}')
@@ -78,50 +82,49 @@ def texStripper(complete_text):
             content = extract_begin_to_end(complete_text2,l,("\\section","\\subsection","\\begin{thebibliography}","\\end{document}"))
             keyword = r"{}".format(keyword)
             text_sections[keyword] = content
+
             
-        if line.startswith("\\end{document}"):
-            in_document = False
-            in_section = False
 
         if in_document and not line.startswith(("\\","\t","%"," "*2," "*3," "*4," "*5)):
             if line != '':
                 text_keys['plain text'].append(line)
                 if not in_section:
-                    text_sections['pre_section'].append(line)
+                    text_sections['unnamed section'].append(line)
 
-    text_sections['pre_section'] = '\n'.join(text_sections['pre_section'])
+    text_sections['unnamed section'] = '\n'.join(text_sections['unnamed section'])
     print(text_sections.keys())
 
     final_text = {}
+    temp_list_phrases =[]
     final_text['sections'] = list(text_sections.keys())
-    final_text['complete'] =[]
     final_text['full'] = []
     final_text['tokens'] = 0
     # append general info
     for key in text_keys:
         if key in ['title','author','email','thanks','affiliation']:
-            #append on top of the list,code: final_text['complete'].insert(0,text_keys[key][0])
-            final_text['complete'].append(key+": "+",".join(text_keys[key]))
+            #append on top of the list,code: temp_list_phrases.insert(0,text_keys[key][0])
+            temp_list_phrases.append(key+": "+",".join(text_keys[key]))
     # append abstract (if exists)
     if 'abstract' in text_keys.keys():
-        final_text['complete'].append('abstract: '+ " ".join(text_keys['abstract' ]))
+        temp_list_phrases.append('abstract: '+ " ".join(text_keys['abstract' ]))
     # append sections
     for sec in text_sections.keys():
-        if sec !='pre_section':
+        #if sec !='unnamed section':
             print(sec)
-            for phrase in text_sections[sec].split('. '):
+            for phrase in text_sections[sec].split('. '): #split on .
                 if phrase !='':
-                    final_text['complete'].append(phrase)
+                    temp_list_phrases.append("["+sec+"]"+phrase)
     
-    #looop over final_text['complete'] and check length of each phrase
+    #looop over temp_list_phrases and check length of each phrase
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
 
-    for phrase in final_text['complete']:
+    for phrase in temp_list_phrases:
         tokens = len(tokenizer.encode(phrase))
         if tokens>2000:
-            phrase = phrase.split('.')
-            if len(phrase)>1:
-                for p in phrase:
+            phrase_split = phrase.split('.')
+            print(phrase_split)
+            if len(phrase_split)>1:
+                for p in phrase_split:
                     final_text['full'].append(p)
 
         else:
@@ -201,7 +204,7 @@ def compute_price_search_query_embedding(question, embedding_model):
     return embedding_question,tokens,dollars
 
 
-def save_embedding(df,filename,std_folder,tokens=0, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001', ):
+def save_embedding(df,filename,std_folder,total_tokens=0, engine_sim = 'text-similarity-babbage-001', engine_search = 'text-search-babbage-doc-001', ):
     """
     Save the embedding of the phrases in a csv file
     """
@@ -217,27 +220,15 @@ def save_embedding(df,filename,std_folder,tokens=0, engine_sim = 'text-similarit
     
     complete_filename = std_folder+filename+'/'+engine_search+'.csv'
     print('Saving search embeddings to',complete_filename)
-    #loop over the phrase in df and compute the cost
-    tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
-    dollars = 0
-    total_tokens = 0
-    
 
     if not os.path.exists(complete_filename):
         # combine_similar_phrases(df)
         df['search'] = df.Phrase.apply(lambda x: get_embedding(x, engine= engine_search))
         df.to_csv(complete_filename) #the savewith search embedding
-        for i,phrase in df.iterrows():
-            if i == 0:
-                continue
-            tokens = len(tokenizer.encode(phrase.Phrase))
-            total_tokens += tokens
-            dollars+= compute_price_search_doc_embedding(tokens, engine_search)
     else:
         print('File:"'+complete_filename +'" already exists. To updated it erase the file and run again')
-        dollars = 0
-        total_tokens = 0
-    return df,dollars,total_tokens
+
+    return df
     
 
 
@@ -257,6 +248,8 @@ def connect_adjacents_phrases(df):
             index_before = list_of_indeces[i-1]
         if index_here == index_before+1:
             df.loc[index_here, "Phrase"] = df.loc[index_before].Phrase + '. ' + df.loc[index_here].Phrase
+            # update here with query_doc_similarities from index_before
+            df.loc[index_here, "query_doc_similarities"] = (df.loc[index_before].query_doc_similarities + df.loc[index_here].query_doc_similarities)/2
             df.loc[index_before, 'Phrase'] = ''
             #delete the row at index_before
             df.drop(index_before, inplace=True)
