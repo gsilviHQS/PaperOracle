@@ -327,7 +327,8 @@ class Application(tk.Frame):
         total_dollars_used += dollars #add the dollars used to the total dollars usage
         self.dollars.set(total_dollars_used) #update the dollars usage
 
-        self.token_label.set('Usage: '+str(total_token_used)+' tokens ($'+"{:3.3f}".format(total_dollars_used)+')') #update the token usage label
+        self.token_label.set('Usage: '+str(total_token_used)+' tokens ('+'{:3.3f}'.format(total_dollars_used)+'$)'+\
+                             '\n (Last: '+str(tokens)+ ' tokens ('+'{:3.3f}'.format(dollars)+'$)') #update the token usage label
 
     # def get_paper_and_embedding(self):
     #     self.get_paper()
@@ -423,7 +424,7 @@ class Application(tk.Frame):
         tk.Label(self.titleabstract, text="Curie: "+str(cost_estimate_curie)+"$").pack()
         # add label above option menu
         tk.Label(self.titleabstract, text="Choose a model for the embedding of the paper: ").pack()
-        
+
         self.dropdown = tk.OptionMenu(self.titleabstract, self.model, 'text-search-babbage-doc-001', 'text-search-curie-doc-001')
         self.dropdown.pack()
 
