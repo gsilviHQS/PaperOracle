@@ -29,6 +29,7 @@ class Application(tk.Frame):
         self.master = master
         #initialization
         self.last_question_and_answer = None
+        self.final_text = None
         self.dfs = [] #list of dataframes
         self.last_embeddings = []
         self.number_of_prompts = 0
@@ -371,8 +372,8 @@ class Application(tk.Frame):
             self.dfs.append((df,model))
             # get also the text
             with open(FOLDER_EMB+emb+'/'+emb+'.json', 'r') as f:
-                final_text = json.load(f)
-                self.all_texts.append(" ".join(final_text['full']))
+                fulltext = json.load(f)
+                self.all_texts.append(" ".join(fulltext['full']))
             # get also the bibtex
             with open(FOLDER_EMB+emb+'/bibtex.json', 'r') as f:
                 bibtex = json.load(f)
@@ -384,7 +385,13 @@ class Application(tk.Frame):
 
     def pre_confirm_paper(self):
         url = self.url.get()  # get the url from the entry box
+        ### get the text
+        self.papertitle.set("Obtaining PDF and tex files...")
+        self.master.update()
 
+        self.tex_files,self.bibfiles = functions.getPaper(url)  # get the paper from arxiv
+        complete_text = functions.extract_all_text(self.tex_files)  # extract all the text from the tex files
+        self.final_text = embedding_functions.texStripper(complete_text) # refine the text
         title,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
         # open a new window to show the title and abstract of the paper
         self.titleabstract = tk.Toplevel(self.master)
@@ -400,9 +407,23 @@ class Application(tk.Frame):
         # insert the url of the paper
         self.textabstract.insert("end", "\n\n")
         self.textabstract.insert("end", "URL: "+url)
+        self.textabstract.insert("end", "\n\nTeX files found:"+str(self.tex_files))
+        self.textabstract.insert("end", "\n\nBibtex files found:"+str(self.bibfiles))
         # create a dropdown menu to select the model for the embedding
         self.model = tk.StringVar(self.titleabstract)
         self.model.set('text-search-babbage-doc-001') # default value
+        # get the cost estimate of each embedding
+        cost_estimate_babbage = "{:3.3f}".format(embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'],'text-search-babbage-doc-001'))
+        cost_estimate_curie = "{:3.3f}".format(embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'],'text-search-curie-doc-001'))
+
+        
+        # add a label with the cost estimate of the embeddings
+        tk.Label(self.titleabstract, text="Cost estimate for the embedding: ").pack()
+        tk.Label(self.titleabstract, text="Babbage: "+str(cost_estimate_babbage)+"$").pack()
+        tk.Label(self.titleabstract, text="Curie: "+str(cost_estimate_curie)+"$").pack()
+        # add label above option menu
+        tk.Label(self.titleabstract, text="Choose a model for the embedding of the paper: ").pack()
+        
         self.dropdown = tk.OptionMenu(self.titleabstract, self.model, 'text-search-babbage-doc-001', 'text-search-curie-doc-001')
         self.dropdown.pack()
 
@@ -414,9 +435,8 @@ class Application(tk.Frame):
         """
         Confirm the paper and get the embedding
         """
-        print('Paper confirmed')
-        self.textabstract.insert("end", "\n\n...Obtaining paper and creating embedding")
-        print(self.model.get())
+        print('Paper confirmed, create embedding with model: '+self.model.get())
+        self.textabstract.insert("end", "\n\n...Creating embedding using "+self.model.get()+"...")
         self.get_paper()
         self.titleabstract.destroy()
 
@@ -429,68 +449,54 @@ class Application(tk.Frame):
         """
         # EXTRACT THE PAPER FIRST FROM THE URL
         url = self.url.get()  # get the url from the entry box
-        model_in_use = self.model.get()
         self.save_url()
-        final_text = None
-
+        filename = url.split('/')[-1] #get the filename from the url
         header,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
 
-        # wait for the user to confirm the paper
         self.papertitle.set("embedding...\n"+header)  # set the papertitle label
         self.master.update()
-
-        tex_files,bibfiles = functions.getPaper(url)  # get the paper from arxiv
-        self.textabstract.insert("end", "\n\n'tex_files found:"+str(tex_files))
-        print('bib_text found:', bibfiles)
-        filename = url.split('/')[-1] #get the filename from the url
         
         if not os.path.exists(FOLDER_EMB+filename):
             print('Creating folder for embeddings')
             os.makedirs(FOLDER_EMB+filename)
 
         if not os.path.exists(FOLDER_EMB+filename+'/bibtex.json'):
-            bib_text = functions.extract_all_text(bibfiles)  # extract the text from the bib file
+            bib_text = functions.extract_all_text(self.bibfiles)  # extract the text from the bib file
             with open(FOLDER_EMB+filename+'/bibtex.json', 'w') as f:
                 json.dump(bib_text, f)
+        
 
         if not os.path.exists(FOLDER_EMB+filename+'/'+filename+'.json'):
-            complete_text = functions.extract_all_text(tex_files)  # extract all the text from the tex files
-            final_text = embedding_functions.texStripper(complete_text) # refine the text
-            # self.complete_text = " ".join(final_text['full'])
+            # self.complete_text = " ".join(self.final_text['full'])
             # save complete text to file
             with open(FOLDER_EMB+filename+'/'+filename+'.json', 'w') as f:
-                json.dump(final_text, f)
+                json.dump(self.final_text, f)     
         else:
             print('complete text already exists')
         
+        model_in_use = self.model.get()
         if not os.path.exists(FOLDER_EMB+filename+'/'+model_in_use+'.csv'):
-            if final_text is None:
-                complete_text = functions.extract_all_text(tex_files)  # extract all the text from the tex files
-                final_text = embedding_functions.texStripper(complete_text) # refine the text
+
             # create the embedding of the text
-            df = pd.DataFrame(final_text['full'], columns=['Phrase'])
+            df = pd.DataFrame(self.final_text['full'], columns=['Phrase'])
             df2= embedding_functions.save_embedding(df,filename,FOLDER_EMB,engine_search=model_in_use)
-            dollars= embedding_functions.compute_price_search_doc_embedding(final_text['tokens'], model_in_use)
-            self.update_token_usage(final_text['tokens'], dollars)
+            dollars= embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'], model_in_use)
+            self.update_token_usage(self.final_text['tokens'], dollars)
             # save title here
             with open(FOLDER_EMB+filename+'/info.json', 'w') as f:
                 json.dump(header, f)
             # recheck the checkbuttons
             self.check_embedding_in_folder()
-
             self.papertitle.set("embedding...\n DONE!")  # set the papertitle label
 
         else:
             print('embedding already exists')
             self.papertitle.set("embedding...\n already present")
+        self.final_text = None
 
-        # SET THE INFO ON SCREEN
-        
-  
-        # save header to info.json
         
         #find section and subsection of the paper
-        # list_of_section = final_text['sections']
+        # list_of_section = self.final_text['sections']
         # list_of_section = functions.remove_duplicates(list_of_section, simplecase=True)
         # print(list_of_section)
         # self.sections.delete(1.0, tk.END)
@@ -591,12 +597,13 @@ class Application(tk.Frame):
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
                 if separate_answer == 1:
+                    self.textbox.insert(tk.END,'\nGPT3:\n')  
                     for p,list_of_phrases in enumerate(list_of_list_of_phrases):
                         response = functions.promptText_question(question, list_of_phrases,self.last_question_and_answer,1, api_key) #ask GPT-3 to give the answer
                         tokens += response['usage']['total_tokens']
                         model = response['model']
                         answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text'].strip('\n')
-                        self.textbox.insert(tk.END,'\nGPT3:\n'+answer+'\n')  # insert the answer in the output box
+                        self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
                         self.master.update()
                 else:
                     response = functions.promptText_question(question, list_of_phrases,self.last_question_and_answer,len(self.dfs), api_key) #ask GPT-3 to give the answer
