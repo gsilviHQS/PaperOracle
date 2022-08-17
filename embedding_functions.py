@@ -2,6 +2,7 @@ from openai.embeddings_utils import get_embedding, cosine_similarity
 from transformers import GPT2TokenizerFast
 import os
 import numpy as np
+import re
 
 def texStripper(complete_text):
     complete_text2 = complete_text.split('\n')
@@ -76,6 +77,15 @@ def texStripper(complete_text):
             in_section = True
             sections_started = True
             # get the name and content of the section
+            #  identify \label{ with regex in line with the following:
+            #  \label{(.*?)}
+            #  use regex here
+            print(line)
+            line = re.sub(r"\\label{(.*?)}", "", line)
+            print(line)
+            if '}' not in line:
+                #append the next line to the current line
+                line = line + complete_text2[l+1]
             first_division = line.split('{')
             keyword = loop_over(segments=first_division[1:], opening='{', closing= '}' )
             #get all the lines until the next \section or \subsection

@@ -9,6 +9,8 @@ import re
 import requests
 from bs4 import BeautifulSoup
 from collections import Counter
+import gzip
+import shutil
 
 MAX_LENGHT_PHRASE = 2000
 MAX_PHRASES_TO_SEARCH = 200
@@ -37,22 +39,36 @@ def getPaper(paper_url):
     Search also for tex in bibtex file
     """
     filename = paper_url.split('/')[-1]  # get the last part of the url, i.e. the numbers
-    filename = 'papers/' + filename
-    if not os.path.exists(filename):  # if the directory doesn't exist
-        os.mkdir(filename)  # create a directory
+    parentfolder = 'papers/'
+    path = parentfolder + filename
+    print('Filename: ' + path)
+    if not os.path.exists(path):  # if the directory doesn't exist
+        os.mkdir(path)  # create a directory
         # downloadedPaper = wget.download(paper_url, filename + '.pdf')  # download the paper pdf
         # downloadedPaperFilePath = pathlib.Path(downloadedPaper) # get the path to the downloaded file
         urllib.request.urlretrieve(paper_url.replace(
-            'abs', 'e-print'), filename + ".tar.gz")  # download the tar file
-
-        tar = tarfile.open(filename + ".tar.gz", "r:gz")  # open the tar file
-        tar.extractall(path=filename)  # extract the tar file
-        tar.close()  # close the tar file
-        os.remove(filename + ".tar.gz")  # remove the tar file
+            'abs', 'e-print'), path + ".tar.gz")  # download the tar file
+        #check the type of the file
+    if os.path.exists(path + '.tar.gz'):  # if the tar file exists
+        try:
+            tar = tarfile.open(path + ".tar.gz", "r:gz")  # open the tar file
+            tar.extractall(path=path)  # extract the tar file
+            tar.close()  # close the tar file
+            os.remove(path + ".tar.gz")  # remove the tar file
+        except Exception as e:
+            os.remove(path + ".tar.gz")
+            urllib.request.urlretrieve(paper_url.replace(
+            'abs', 'e-print'), path +'/temp.gz')
+            with gzip.open(path +'/temp.gz', 'rb') as f_in:
+                #extract the content of the gz file
+                with open(path +'/main.tex', 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            os.remove(path +'/temp.gz')
+            
 
     texfiles = []
     bibfiles = []
-    for subdir, dirs, files in os.walk(filename):
+    for subdir, dirs, files in os.walk(path):
         for file in files:
             if file.endswith(".tex"):
                 texfilename = os.path.join(subdir, file)
@@ -60,20 +76,35 @@ def getPaper(paper_url):
             elif file.endswith(".bib") or file.endswith(".bbl"):
                 bibfilename = os.path.join(subdir, file)
                 bibfiles.append(bibfilename)
+    print(texfiles)
     return texfiles, bibfiles  # return the texfiles
 
 
 ####################### TEXT-related functions ##############################
 
+import magic
+import binascii
+import base64
 
 def extract_all_text(texfiles):
     """ Extract all the text from the tex file """
     text = ''
     for texfile in texfiles:
-        with open(texfile, 'r') as f:
-            lines = f.readlines()
-        for line in lines:
-            text += line
+        blob = open(texfile, 'rb').read()
+        m = magic.Magic(mime_encoding=True)
+        encoding = m.from_buffer(blob)
+        print(encoding)
+            
+
+        with open(texfile, 'rb') as f:           
+            data = f.readlines()
+        
+            if encoding == 'binary':
+                for line in data:
+                    print(line)
+                    print(base64.decodebytes(line).decode('utf-8'))
+        for line in data:
+            text += line.decode(encoding) 
     return text
 
 def find_next(string, pos, list_of_substrings):

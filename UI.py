@@ -248,7 +248,7 @@ class Application(tk.Frame):
                 def_emb = [x.strip() for x in def_emb]
                 print('default embeddings: ', def_emb)
 
-        type_of_embedding = ['text-search-babbage-doc-001.csv','text-search-curie-doc-001.csv']
+        type_of_embedding = ['text-search-ada-doc-001.csv','text-search-babbage-doc-001.csv','text-search-curie-doc-001.csv']
         if len(self.embeddings) > 0:
             for model in type_of_embedding:
                 only_model = model.replace('.csv','')
@@ -386,6 +386,7 @@ class Application(tk.Frame):
 
     def pre_confirm_paper(self):
         url = self.url.get()  # get the url from the entry box
+        self.save_url()
         ### get the text
         self.papertitle.set("Obtaining PDF and tex files...")
         self.master.update()
@@ -414,18 +415,20 @@ class Application(tk.Frame):
         self.model = tk.StringVar(self.titleabstract)
         self.model.set('text-search-babbage-doc-001') # default value
         # get the cost estimate of each embedding
+        cost_estimate_ada = "{:3.3f}".format(embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'], 'text-search-ada-doc-001'))
         cost_estimate_babbage = "{:3.3f}".format(embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'],'text-search-babbage-doc-001'))
         cost_estimate_curie = "{:3.3f}".format(embedding_functions.compute_price_search_doc_embedding(self.final_text['tokens'],'text-search-curie-doc-001'))
 
         
         # add a label with the cost estimate of the embeddings
         tk.Label(self.titleabstract, text="Cost estimate for the embedding: ").pack()
+        tk.Label(self.titleabstract, text="Ada: "+str(cost_estimate_ada)+"$").pack()
         tk.Label(self.titleabstract, text="Babbage: "+str(cost_estimate_babbage)+"$").pack()
         tk.Label(self.titleabstract, text="Curie: "+str(cost_estimate_curie)+"$").pack()
         # add label above option menu
         tk.Label(self.titleabstract, text="Choose a model for the embedding of the paper: ").pack()
 
-        self.dropdown = tk.OptionMenu(self.titleabstract, self.model, 'text-search-babbage-doc-001', 'text-search-curie-doc-001')
+        self.dropdown = tk.OptionMenu(self.titleabstract, self.model, 'text-search-ada-doc-001','text-search-babbage-doc-001', 'text-search-curie-doc-001')
         self.dropdown.pack()
 
         # insert a button below the abstract to confirm the paper
@@ -450,7 +453,7 @@ class Application(tk.Frame):
         """
         # EXTRACT THE PAPER FIRST FROM THE URL
         url = self.url.get()  # get the url from the entry box
-        self.save_url()
+        
         filename = url.split('/')[-1] #get the filename from the url
         header,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
 
@@ -653,7 +656,7 @@ class Application(tk.Frame):
 
 root = tk.Tk()
 root.title("ArXiv Paper Oracle: Q&A Tool with OpenAI GPT-3")
-root.geometry("2000x1000")
+root.geometry("2000x800")
 root.columnconfigure(4) 
 root.configure(background="darkgray")
 root.bind_class("Entry", "<<Paste>>", custom_paste)
