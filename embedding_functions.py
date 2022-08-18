@@ -4,9 +4,9 @@ import os
 import numpy as np
 import re
 
-def texStripper(complete_text):
+def texStripper(complete_text, title, abstract):
     complete_text2 = complete_text.split('\n')
-    possible_keywords = ["\\title", "\\author", "\\email", "\\thanks","\\affiliation","\\date","\\input"]
+    possible_keywords = ["\\title","\\author", "\\email", "\\thanks","\\affiliation","\\date","\\input"]
     temp_possible_keywords = possible_keywords.copy()
     #add \t to each possible_keywords
     for keyword in possible_keywords:
@@ -23,9 +23,12 @@ def texStripper(complete_text):
 
     def extract_begin_to_end(complete_text,l, keyword):
         #add lines from complete_text, starting from l+1 until you find a line starting with \end{
-        #code:
+        # print('complete_text[l]',complete_text[l], 'keyword',keyword)
         if complete_text[l+1].startswith(keyword):
             return ''
+        elif type(keyword) == str: 
+            if keyword in complete_text[l]:
+                return complete_text[l]
         elif complete_text[l+1].startswith('%'):
             return extract_begin_to_end(complete_text,l+1,keyword)
         else:
@@ -39,70 +42,75 @@ def texStripper(complete_text):
 
 
     text_sections = {}
-    text_sections['unnamed section'] = []
     text_keys = {}
-    text_keys['plain text'] = []
+    # text_keys['plain text'] = []
+
     in_document = False
     in_section = False
 
-    for l,line in enumerate(complete_text2):
+    for l,line in enumerate(complete_text2): #loop over lines
             
-        
         if line.startswith(possible_keywords):
                 first_division = line.split('{')
                 keyword = first_division[0].replace('\\','')
                 content = content_in_pharentesis(first_division[1],complete_text2,l)
-                if keyword not in text_keys:
+                if keyword not in text_keys.keys():
                     text_keys[keyword] = [content]
                 else:
                     text_keys[keyword].append(content)
+        
         elif line.startswith("\\begin{document"):
             in_document = True
-            continue # the continue keyword is used to skip the current iteration of the loop
+            continue 
+
         elif line.startswith("\\end{document"):
             in_document = False
             in_section = False
             continue
+    
         elif line.startswith("\\begin{") and in_document:
             first_division = line.split('{')
             second_division = first_division[1].split('}')
             keyword = second_division[0]
             content = extract_begin_to_end(complete_text2,l,'\end{'+keyword)
-            if keyword not in text_keys:
+            if keyword not in text_keys.keys():
                 text_keys[keyword] = [content]
             else:
                 text_keys[keyword].append(content)
         #print(r"{}".format(line))
-        if line.startswith(("\\section","\\subsection","\t\\section","\t\\subsection")):
+        if line.startswith(("\\section","\\subsection","\t\\section","\t\\subsection","\\paragraph","\t\\paragraph")):
             in_section = True
-            sections_started = True
-            # get the name and content of the section
-            #  identify \label{ with regex in line with the following:
-            #  \label{(.*?)}
-            #  use regex here
-            print(line)
             line = re.sub(r"\\label{(.*?)}", "", line)
-            print(line)
+            # print(line)
             if '}' not in line:
                 #append the next line to the current line
                 line = line + complete_text2[l+1]
             first_division = line.split('{')
             keyword = loop_over(segments=first_division[1:], opening='{', closing= '}' )
-            #get all the lines until the next \section or \subsection
-            content = extract_begin_to_end(complete_text2,l,("\\section","\\subsection","\\begin{thebibliography}","\\end{document}"))
             keyword = r"{}".format(keyword)
-            text_sections[keyword] = content
-
+            #get all the lines until the next \section or \subsection
+            text_sections[keyword] = extract_begin_to_end(complete_text2,l,("\\section","\\subsection","\t\\section","\t\\subsection","\\paragraph","\t\\paragraph","\\begin{thebibliography}","\\end{document}"))
             
 
         if in_document and not line.startswith(("\\","\t","%"," "*2," "*3," "*4," "*5)):
             if line != '':
-                text_keys['plain text'].append(line)
+                # text_keys['plain text'].append(line) #may be useless
                 if not in_section:
-                    text_sections['unnamed section'].append(line)
+                    if '-' not in text_sections.keys():
+                        text_sections['-'] = line
+                    else:
+                        text_sections['-'] +=' '+line
 
-    text_sections['unnamed section'] = '\n'.join(text_sections['unnamed section'])
-    print(text_sections.keys())
+    # if '-' in text_sections.keys():
+    #     text_sections['-'] = ' '.join(text_sections['-'])
+
+    if 'title' not in text_keys.keys():
+        text_keys['title'] = [title]
+    if 'abstract' not in text_keys.keys():
+        text_keys['abstract'] = [abstract]
+
+    print('KEYS:',text_keys.keys())
+    print('SECTIONS:',text_sections.keys())
 
     final_text = {}
     temp_list_phrases =[]
@@ -110,16 +118,17 @@ def texStripper(complete_text):
     final_text['full'] = []
     final_text['tokens'] = 0
     # append general info
-    for key in text_keys:
-        if key in ['title','author','email','thanks','affiliation']:
+    
+    for key in text_keys.keys():
+        if key in ['title','abstract','author','email','thanks','affiliation','date']: #TODO include 'equation' 'theorem','proof','lemma'
             #append on top of the list,code: temp_list_phrases.insert(0,text_keys[key][0])
-            temp_list_phrases.append(key+": "+",".join(text_keys[key]))
-    # append abstract (if exists)
-    if 'abstract' in text_keys.keys():
-        temp_list_phrases.append('abstract: '+ " ".join(text_keys['abstract' ]))
+            print(key)
+            temp_list_phrases.append(key+": "+" ".join(text_keys[key]))
+    
     # append sections
+    print()
     for sec in text_sections.keys():
-        #if sec !='unnamed section':
+        #if sec !='-':
             print(sec)
             for phrase in text_sections[sec].split('. '): #split on .
                 if phrase !='':
@@ -132,7 +141,7 @@ def texStripper(complete_text):
         tokens = len(tokenizer.encode(phrase))
         if tokens>2000:
             phrase_split = phrase.split('.')
-            print(phrase_split)
+            print('Phrase too long:',phrase_split)
             if len(phrase_split)>1:
                 for p in phrase_split:
                     final_text['full'].append(p)
@@ -268,7 +277,7 @@ def connect_adjacents_phrases(df):
             continue
     return df
 
-def search_phrases(df, embedding_question, how_many_std=2, pprint=False, connect_adj=True):
+def search_phrases(df, embedding_question, how_many_std=2, pprint=False, connect_adj=True, minimum_one_phrase=True):
     """
     Search the phrases relevant for the question"""
     
@@ -282,9 +291,10 @@ def search_phrases(df, embedding_question, how_many_std=2, pprint=False, connect
     newres = df[df.query_doc_similarities > filter_to_use]
     
     # if there are no phrases with similarity greater than the filter, return the phrase with the highest similarity
-    if len(newres) == 0:
+    if len(newres) == 0 and minimum_one_phrase:
         max_value = df.query_doc_similarities.max()
         newres = df[df.query_doc_similarities == max_value]
+
 
     if connect_adj and len(newres)>1:
         newres = connect_adjacents_phrases(newres)

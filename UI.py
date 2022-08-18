@@ -30,6 +30,7 @@ class Application(tk.Frame):
         #initialization
         self.last_question_and_answer = None
         self.final_text = None
+        self.button4more = None
         self.dfs = [] #list of dataframes
         self.last_embeddings = []
         self.number_of_prompts = 0
@@ -39,10 +40,9 @@ class Application(tk.Frame):
                                    
 
     def create_widgets(self):
-        # make folders if it doesn't exist
-        
-
-        
+        """
+        Create the widgets for the GUI
+        """
         # Variables
         self.dollars = tk.DoubleVar()
         self.dollars.set(0.0)
@@ -99,16 +99,6 @@ class Application(tk.Frame):
         tk.Label(self.master, textvariable = self.token_label).grid(row=9, column=0 , sticky=tk.W)
         
         #Column 1 widgets
-        # add a slider to change the standard deviation, from 0 to 4 with label "Standard deviation"
-        
-
-        #menu for embedding
-        # self.default_embedding = tk.StringVar()
-        # self.default_embedding.set("Embeddings")
-        # self.default_embedding.trace("w", self.callback_to_embedding) #callback to update the url
-        
-        
-
 
         # output box to display the result
         
@@ -153,6 +143,11 @@ class Application(tk.Frame):
         self.separate_answer_checkbox = tk.Checkbutton(self.master, text="Separate answer for each paper", variable=self.separate_answer)
         self.separate_answer_checkbox.grid(row=11, column=3)
 
+        self.at_least_one_phrase = tk.IntVar()
+        self.at_least_one_phrase.set(1)
+        self.at_least_one_answer_checkbox = tk.Checkbutton(self.master, text="At least one phrase per paper", variable=self.at_least_one_phrase)
+        self.at_least_one_answer_checkbox.grid(row=12, column=3)
+
           # new textbox for the phrases matching the question
         
         tk.Label(self.master, text="Phrases in Tex given to GPT").grid(row=4, column=3, columnspan=1)
@@ -181,11 +176,6 @@ class Application(tk.Frame):
         tk.Button(self.master, text='Get paper and create embedding', command=self.pre_confirm_paper).grid(row=4, column=0)
 
         tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=10, column=0, sticky=tk.W)                     
-
-       
-
-
-        
 
         tk.Button(self.master, text='Run', command=self.run).grid(row=11,
                                                                   column=1,
@@ -390,11 +380,12 @@ class Application(tk.Frame):
         ### get the text
         self.papertitle.set("Obtaining PDF and tex files...")
         self.master.update()
-
+        
+        title,abstract = functions.getTitleOfthePaper(url) #get the title and abstract of the paper
         self.tex_files,self.bibfiles = functions.getPaper(url)  # get the paper from arxiv
         complete_text = functions.extract_all_text(self.tex_files)  # extract all the text from the tex files
-        self.final_text = embedding_functions.texStripper(complete_text) # refine the text
-        title,abstract = functions.getTitleOfthePaper(url) #get the title of the paper
+        self.final_text = embedding_functions.texStripper(complete_text,title,abstract) # refine the text
+        
         # open a new window to show the title and abstract of the paper
         self.titleabstract = tk.Toplevel(self.master)
         self.titleabstract.geometry('800x600')
@@ -510,6 +501,44 @@ class Application(tk.Frame):
             # apply the hyperlinks to the phrases
             # self.sections.highlight_pattern(i,interlink)
 
+    def add_more_button(self):
+        """
+        Add a button to add more answer
+        """
+        self.button4more = tk.Button(self.textbox, text="More", padx=2, pady=2,
+                                        cursor="left_ptr",
+                                        bd=1, highlightthickness=0,
+                                        command = self.more_answer)
+        self.textbox.config(state=tk.NORMAL)
+        self.textbox.window_create("end-2c", window=self.button4more)
+        self.textbox.config(state=tk.DISABLED)
+
+    def more_answer(self):
+        """
+        Add a more answer to the answer box
+        """
+        print('add more answer')
+        # cancel self.button4more
+        self.button4more.destroy()
+        response = functions.simple_prompt(self.lastpromtanswer+'\n', api_key=self.apikey.get())
+        answer = response['choices'][0]['text']
+        if answer.strip() == '':
+            answer = '*No answer. Start a new question*'
+            addbutton = False
+        else:
+            addbutton = True
+        print('answer',answer)
+        self.textbox.config(state=tk.NORMAL)
+        self.textbox.insert(tk.END,answer+'\n')  
+        self.textbox.config(state=tk.DISABLED)
+        tokens = response['usage']['total_tokens']
+        model = response['model']
+        self.lastpromtanswer = self.lastpromtanswer+answer
+        dollars = functions.compute_price_completion(tokens, model)
+        self.update_token_usage(tokens, dollars)
+        
+        if addbutton: self.add_more_button()
+
 
     def run(self):
         """
@@ -527,13 +556,18 @@ class Application(tk.Frame):
             self.textbox.delete(1.0, tk.END)
             self.textbox.insert(tk.END, 'You:\n'+question+'\n')
         else:
+            
             self.textbox.insert(tk.END, '\nYou:\n'+question+'\n')
             self.textbox.see("end")
         
-        
+        if self.button4more is not None:
+            self.button4more.destroy()
         
         # check if the embeddings used have changed and update the embedding if necessary
         embedding_to_use = self.get_checked_embedding()
+        if len(embedding_to_use) == 0:
+            self.textbox.insert(tk.END, '\n Attention! You need to select papers to use.')
+            return
         self.master.update()
 
         if self.last_embeddings != embedding_to_use:
@@ -560,18 +594,26 @@ class Application(tk.Frame):
 
         # loop over all dataframes/embeddings and find the phrases that are similar to the question
         i=0
+        number_of_papers_used = 0
         for df,model in self.dfs:
             # print first phrase in df
             phrases_with_similarity = []
             title = self.all_info[i]
+
             # Get list_of_phrases from the embeddings
-            newres = embedding_functions.search_phrases(df, embedding_question[model], how_many_std=standard_deviation,connect_adj=True)
-            if i==0: 
-                list_of_phrases.append('From paper:'+title+'\n')
-                phrases_with_similarity.append('>From paper:'+title+'('+model+')\n')
-            else:
-                list_of_phrases.append('\nFrom paper:'+title+'\n')
-                phrases_with_similarity.append('\n\n >From paper:'+title+'('+model+')\n')
+            newres = embedding_functions.search_phrases(df,
+                                                        embedding_question[model],
+                                                        how_many_std=standard_deviation,
+                                                        connect_adj=True, 
+                                                        minimum_one_phrase=self.at_least_one_phrase.get())
+            if len(newres)>0:
+                number_of_papers_used += 1
+                if i==0:
+                    list_of_phrases.append('From paper:'+title+'\n')
+                    phrases_with_similarity.append('>From paper:'+title+'('+model+')\n')
+                else:
+                    list_of_phrases.append('\nFrom paper:'+title+'\n')
+                    phrases_with_similarity.append('\n\n >From paper:'+title+'('+model+')\n')
 
             temp_list_of_phrases = newres.Phrase.tolist()[:MAX_PHRASES_TO_USE]
             
@@ -600,21 +642,24 @@ class Application(tk.Frame):
             tokens = 0
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                if separate_answer == 1:
-                    self.textbox.insert(tk.END,'\nGPT3:\n')  
+                self.textbox.insert(tk.END,'\nGPT3:')
+                if separate_answer == 1 and len(list_of_list_of_phrases) > 1:
+                      
                     for p,list_of_phrases in enumerate(list_of_list_of_phrases):
-                        response = functions.promptText_question(question, list_of_phrases,self.last_question_and_answer,1, api_key) #ask GPT-3 to give the answer
+                        response, prompt = functions.promptText_question(question, list_of_phrases,1, api_key) #ask GPT-3 to give the answer
                         tokens += response['usage']['total_tokens']
                         model = response['model']
-                        answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text'].strip('\n')
+                        answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text']
                         self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
                         self.master.update()
                 else:
-                    response = functions.promptText_question(question, list_of_phrases,self.last_question_and_answer,len(self.dfs), api_key) #ask GPT-3 to give the answer
+                    response, prompt = functions.promptText_question(question, list_of_phrases,number_of_papers_used, api_key) #ask GPT-3 to give the answer
                     tokens = response['usage']['total_tokens']
                     model = response['model']
-                    answer = response['choices'][0]['text'].strip('\n')
-                    self.textbox.insert(tk.END,'\nGPT3:\n'+answer+'\n')  # insert the answer in the output box
+                    answer = response['choices'][0]['text']
+                    self.textbox.insert(tk.END,answer+'\n')  # insert the answer in the output box
+                    self.lastpromtanswer = prompt+answer
+                    self.add_more_button()
 
                 
                 self.textbox.see("end")
@@ -648,7 +693,7 @@ class Application(tk.Frame):
             #     self.phraseinTex.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
             self.phraseinTex.config(state=tk.DISABLED)
         else:
-            self.textbox.insert(tk.END, '\n Attention! You need to select papers to use.')
+            self.textbox.insert(tk.END, '\n No phrases found in Tex at the level of standard deviation selected! Try lower the standard deviation or check the box "At least one phrase per paper".')
         self.textbox.config(state=tk.DISABLED)
 
 

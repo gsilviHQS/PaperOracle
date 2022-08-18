@@ -347,17 +347,19 @@ def promptText_keywords(question, api_key):
     return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
 
 
-def promptText_question(question, inputtext, last_qa,n_papers, api_key):
+def promptText_question(question, inputtext, n_papers, api_key):
     inputtext =  '-'+'\n-'.join(inputtext)
     openai.api_key = api_key
-    if last_qa is None:
-        last_qa = ''
+    question = question.strip('\n')
+    if n_papers > 1:
+        context = "#CONTEXT: Phrases from "+str(n_papers)+" papers#:\n"
+    else:
+        context = "#CONTEXT#:\n"
     # PROMPT HERE
-    prompt = last_qa+\
-        "\n#CONTEXT: Phrases from "+str(n_papers)+" papers#:\n" +\
+    prompt = context+\
         inputtext +\
-        "\n ##\nPrompt:from the context, answer the following:'\n"+\
-        question.strip('\n')
+        "\n ##\n"+\
+        "Prompt: from the context, answer the following: "+question+"\n"
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
@@ -372,6 +374,21 @@ def promptText_question(question, inputtext, last_qa,n_papers, api_key):
         # stop=["\n"]
     )
     print('\nOUTPUT:', response['choices'][0]['text'])
+    return response, prompt
+
+def simple_prompt(prompt, api_key):
+    openai.api_key = api_key
+    response = openai.Completion.create(
+        engine=BEST_ENGINE,
+        prompt=prompt,
+        temperature=0.1,
+        max_tokens=1000,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        logprobs=1,
+        # stop=["\n"]
+    )
     return response
 
 # def promptText_question2(question, inputtext, header, api_key):
