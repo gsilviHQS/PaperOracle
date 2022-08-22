@@ -21,18 +21,21 @@ def texStripper(complete_text, title, abstract):
         else:
             return second_division[0]
 
-    def extract_begin_to_end(complete_text,l, keyword):
+    def extract_begin_to_end(complete_text,l, endkeyword):
         #add lines from complete_text, starting from l+1 until you find a line starting with \end{
-        # print('complete_text[l]',complete_text[l], 'keyword',keyword)
-        if complete_text[l+1].startswith(keyword):
-            return ''
-        elif type(keyword) == str: 
-            if keyword in complete_text[l]:
+
+        # in case of begin and end in the same line
+        if type(endkeyword) == str: 
+            if endkeyword in complete_text[l]:
                 return complete_text[l]
-        elif complete_text[l+1].startswith('%'):
-            return extract_begin_to_end(complete_text,l+1,keyword)
-        else:
-            return complete_text[l+1]+' '+extract_begin_to_end(complete_text,l+1,keyword)
+
+
+        if complete_text[l+1].startswith(endkeyword): #if the next line starts with the endkeyword
+            return '' 
+        elif complete_text[l+1].startswith('%'): #if the next line starts with a comment
+            return extract_begin_to_end(complete_text,l+1,endkeyword)
+        else:                                  #if the next line does not start with the endkeyword  or comment, add it to the text   
+            return complete_text[l+1]+' '+extract_begin_to_end(complete_text,l+1,endkeyword)
 
     def loop_over(segments, opening, closing):
         if closing in segments[0]:
@@ -72,7 +75,8 @@ def texStripper(complete_text, title, abstract):
             first_division = line.split('{')
             second_division = first_division[1].split('}')
             keyword = second_division[0]
-            content = extract_begin_to_end(complete_text2,l,'\end{'+keyword)
+            
+            content = extract_begin_to_end(complete_text2,l,'\\end{'+keyword)
             if keyword not in text_keys.keys():
                 text_keys[keyword] = [content]
             else:
@@ -104,9 +108,9 @@ def texStripper(complete_text, title, abstract):
     # if '-' in text_sections.keys():
     #     text_sections['-'] = ' '.join(text_sections['-'])
 
-    if 'title' not in text_keys.keys():
+    if 'title' not in text_keys.keys() and title is not None:
         text_keys['title'] = [title]
-    if 'abstract' not in text_keys.keys():
+    if 'abstract' not in text_keys.keys()and abstract is not None:
         text_keys['abstract'] = [abstract]
 
     print('KEYS:',text_keys.keys())
@@ -122,7 +126,7 @@ def texStripper(complete_text, title, abstract):
     for key in text_keys.keys():
         if key in ['title','abstract','author','email','thanks','affiliation','date']: #TODO include 'equation' 'theorem','proof','lemma'
             #append on top of the list,code: temp_list_phrases.insert(0,text_keys[key][0])
-            print(key)
+            print(key,text_keys[key])
             temp_list_phrases.append(key+": "+" ".join(text_keys[key]))
     
     # append sections

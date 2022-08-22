@@ -30,7 +30,6 @@ def getTitleOfthePaper(paper_url):
     title = soup.find("title").string
     # to get the abstract, we need to find the div with class 'abs'
     abstract = soup.find('meta', attrs={'name':'citation_abstract'})['content']
-    
     return title,abstract
 
 def getPaper(paper_url):

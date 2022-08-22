@@ -302,6 +302,11 @@ class Application(tk.Frame):
         question = self.question.get("1.0", tk.END)
         with open('default_question.csv', 'w') as f:
             f.write(question)
+    
+    def save_to_history(self,question,answer):
+        with open('history.json', 'a') as f:
+            json.dump({'question':question,'answer':answer}, f)
+            f.write('\n')
 
     def update_token_usage(self,tokens,dollars):
         """
@@ -526,6 +531,7 @@ class Application(tk.Frame):
             answer = '*No answer. Start a new question*'
             addbutton = False
         else:
+            self.save_to_history(self.lastpromtanswer, answer)
             addbutton = True
         print('answer',answer)
         self.textbox.config(state=tk.NORMAL)
@@ -536,6 +542,7 @@ class Application(tk.Frame):
         self.lastpromtanswer = self.lastpromtanswer+answer
         dollars = functions.compute_price_completion(tokens, model)
         self.update_token_usage(tokens, dollars)
+        
         
         if addbutton: self.add_more_button()
 
@@ -669,9 +676,8 @@ class Application(tk.Frame):
                 self.update_token_usage(tokens, dollars) #update the token usage
                 # save the question and answer in self.question_and_answer to used in next prompt as reference
                 # self.last_question_and_answer= 'You:'+question+'\n\nGPT3:'+answer+'\n' #UNCOMMENT IF NECESSARY
-                with open('history.json', 'a') as f:
-                    json.dump({'question':question,'answer':answer}, f)
-                    f.write('\n')
+                self.save_to_history(question, answer)
+
                 self.number_of_prompts += 1
 
             except Exception as e:
