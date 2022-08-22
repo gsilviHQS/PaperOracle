@@ -358,7 +358,7 @@ def promptText_question(question, inputtext, n_papers, api_key):
     prompt = context+\
         inputtext +\
         "\n ##\n"+\
-        "Prompt: from the context, answer the following: "+question+"\n"
+        "Prompt: from the context, answer the following: "+question+"\nIf you are not sure, say I am not sure.\n"
 
     print('INPUT:\n', prompt)
     response = openai.Completion.create(
