@@ -18,6 +18,7 @@ import pandas as pd
 import numpy as np
 import openai
 import json
+from openai.embeddings_utils import cosine_similarity
 
 
 sys.setrecursionlimit(10000)
@@ -602,6 +603,17 @@ class Application(tk.Frame):
         # loop over all dataframes/embeddings and find the phrases that are similar to the question
         i=0
         number_of_papers_used = 0
+        # pre compute the means and standard deviations of the embeddings
+        mean= 0
+        std = 0
+        for df,model in self.dfs:
+            df['query_doc_similarities'] = df.search.apply(lambda x: cosine_similarity(x, embedding_question[model]))
+            mean += df.query_doc_similarities.mean()
+            std += df.query_doc_similarities.std()
+        mean = mean/len(self.dfs)
+        std = std/len(self.dfs)
+
+
         for df,model in self.dfs:
             # print first phrase in df
             phrases_with_similarity = []
@@ -609,7 +621,8 @@ class Application(tk.Frame):
 
             # Get list_of_phrases from the embeddings
             newres = embedding_functions.search_phrases(df,
-                                                        embedding_question[model],
+                                                        mean,
+                                                        std,
                                                         how_many_std=standard_deviation,
                                                         connect_adj=True, 
                                                         minimum_one_phrase=self.at_least_one_phrase.get())
@@ -625,8 +638,7 @@ class Application(tk.Frame):
             temp_list_of_phrases = newres.Phrase.tolist()[:MAX_PHRASES_TO_USE]
             
             # compute mean and standard deviation of the embeddings, for each paper
-            mean = df.query_doc_similarities.mean()
-            std = df.query_doc_similarities.std()
+            
             for sim,phr in zip(newres.query_doc_similarities.round(3).tolist(),temp_list_of_phrases):
                 phrases_with_similarity.append("("+str("{:1.3f}".format((sim-mean)/std))+") "+phr)
             # find if there are hyperlink with arXiv and add them to the list of phrases

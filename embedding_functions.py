@@ -281,15 +281,15 @@ def connect_adjacents_phrases(df):
             continue
     return df
 
-def search_phrases(df, embedding_question, how_many_std=2, pprint=False, connect_adj=True, minimum_one_phrase=True):
+def search_phrases(df, mean, std, how_many_std=2, pprint=False, connect_adj=True, minimum_one_phrase=True):
     """
     Search the phrases relevant for the question"""
     
     # Compute the similarity of the question with the phrases in the dataframe
-    df['query_doc_similarities'] = df.search.apply(lambda x: cosine_similarity(x, embedding_question))
+    
 
-    mean = df.query_doc_similarities.mean()
-    std = df.query_doc_similarities.std()
+    # mean = df.query_doc_similarities.mean()
+    # std = df.query_doc_similarities.std()
     filter_to_use = mean + how_many_std*std #select the filter to use, which means keep the phrase with similarity greater than the filter
     # Filter the phrases with similarity greater than the filter
     newres = df[df.query_doc_similarities > filter_to_use]
