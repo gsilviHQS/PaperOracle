@@ -20,6 +20,12 @@ import openai
 import json
 from openai.embeddings_utils import cosine_similarity
 
+from PIL import Image, ImageOps
+import io
+
+import matplotlib.pyplot as plt
+from matplotlib import rcParams
+rcParams['text.usetex'] = True
 
 sys.setrecursionlimit(10000)
 MAX_PHRASES_TO_USE = 10
@@ -38,6 +44,7 @@ class Application(tk.Frame):
         self.init_folders()
         self.create_widgets()
         self.init_defaults()
+        self.img = []
                                    
 
     def create_widgets(self):
@@ -134,10 +141,10 @@ class Application(tk.Frame):
         tk.Label(self.master, text="Standard deviation of phrases in TeX").grid(row=9, column=3)
         self.std_dev = tk.IntVar()
         self.std_dev.set(0)
-        self.std_dev_slider = tk.Scale(self.master, from_=0, to=4, orient=tk.HORIZONTAL, variable=self.std_dev)
+        self.std_dev_slider = tk.Scale(self.master, from_=1, to=5, orient=tk.HORIZONTAL, variable=self.std_dev)
         self.std_dev_slider.grid(row=10, column=3)
         self.std_dev_slider.bind('<Button-3>', RightClicker)
-        self.std_dev_slider.set(2)
+        self.std_dev_slider.set(3)
         
         self.separate_answer = tk.IntVar()
         self.separate_answer.set(0)
@@ -506,6 +513,45 @@ class Application(tk.Frame):
         #     self.sections.insert(tk.END, i+'\n')
             # apply the hyperlinks to the phrases
             # self.sections.highlight_pattern(i,interlink)
+    def render_latex(self, text):
+        """
+        Render the latex text to an image
+        """
+        # render the latex text to an image
+        try:
+            # add \begin{minipage} and \end{minipage} to the text
+            latextext = r'\begin{minipage}{13cm}'+text+r'\end{minipage}'
+            print('Converting to latex...',latextext)
+            # new plot
+            # fig = plt.figure(figsize=(12, 6))
+            plt.text(0.0, 1.0, latextext, fontsize=12)
+            ax = plt.gca()
+            ax.axis('off')
+            with io.BytesIO() as png_buf:
+                plt.savefig(png_buf, bbox_inches='tight', pad_inches=1)
+                png_buf.seek(0)
+                image = Image.open(png_buf)
+                image.load()
+                inverted_image = ImageOps.invert(image.convert("RGB"))
+                cropped = image.crop(inverted_image.getbbox())
+                cropped.save("lastprompt.png")
+
+            self.img.append(tk.PhotoImage(file = "lastprompt.png"))
+            # erase the plot
+            plt.cla()
+            plt.clf()
+            plt.close()
+            # erase lastpromt.png
+            # os.remove('lastpromt.png')
+            
+            self.textbox.image_create(tk.END, image = self.img[-1]) # Example 1
+            # self.textbox.window_create("end", window = tk.Label( image = img))
+            self.textbox.insert("end", '\n\n')
+
+            
+        except Exception as e:
+            print('Error rendering latex: ',e)
+            self.textbox.insert(tk.END, text+'\n')
 
     def add_more_button(self):
         """
@@ -536,7 +582,8 @@ class Application(tk.Frame):
             addbutton = True
         print('answer',answer)
         self.textbox.config(state=tk.NORMAL)
-        self.textbox.insert(tk.END,answer+'\n')  
+        self.render_latex(answer.strip('\n') )
+        # self.textbox.insert(tk.END,answer+'\n')  
         self.textbox.config(state=tk.DISABLED)
         tokens = response['usage']['total_tokens']
         model = response['model']
@@ -562,10 +609,11 @@ class Application(tk.Frame):
         self.textbox.config(state=tk.NORMAL)
         if self.number_of_prompts == 0:
             self.textbox.delete(1.0, tk.END)
-            self.textbox.insert(tk.END, 'You:\n'+question+'\n')
+            # self.textbox.insert(tk.END, 'You:\n'+question+'\n')
+            self.render_latex('You:'+question)
         else:
-            
-            self.textbox.insert(tk.END, '\nYou:\n'+question+'\n')
+            self.render_latex('You:'+question)
+            # self.textbox.insert(tk.END, '\nYou:\n'+question+'\n')
             self.textbox.see("end")
         
         if self.button4more is not None:
@@ -609,9 +657,9 @@ class Application(tk.Frame):
         for df,model in self.dfs:
             df['query_doc_similarities'] = df.search.apply(lambda x: cosine_similarity(x, embedding_question[model]))
             mean += df.query_doc_similarities.mean()
-            std += df.query_doc_similarities.std()
+            std += df.query_doc_similarities.std()**2
         mean = mean/len(self.dfs)
-        std = std/len(self.dfs)
+        std = np.sqrt(std/len(self.dfs))
 
 
         for df,model in self.dfs:
@@ -661,14 +709,16 @@ class Application(tk.Frame):
             tokens = 0
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
             try:
-                self.textbox.insert(tk.END,'\nGPT3:')
+                # self.textbox.insert(tk.END,'\nGPT3:')
+                self.render_latex('GPT3:')
                 if separate_answer == 1 and len(list_of_list_of_phrases) > 1:
-                      
+                    
                     for p,list_of_phrases in enumerate(list_of_list_of_phrases):
                         response, prompt = functions.promptText_question(question, list_of_phrases,1, api_key) #ask GPT-3 to give the answer
                         tokens += response['usage']['total_tokens']
                         model = response['model']
                         answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text']
+                        self.render_latex(answer.strip('\n'))
                         self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
                         self.master.update()
                 else:
@@ -676,14 +726,16 @@ class Application(tk.Frame):
                     tokens = response['usage']['total_tokens']
                     model = response['model']
                     answer = response['choices'][0]['text']
-                    self.textbox.insert(tk.END,answer+'\n')  # insert the answer in the output box
+                    self.render_latex(answer.strip('\n') )
+                    # self.textbox.insert(tk.END,answer+'\n')  # insert the answer in the output box
                     self.lastpromtanswer = prompt+answer
                     self.add_more_button()
+                    # self.textbox.insert(tk.END,'\n')
 
                 
-                self.textbox.see("end")
-                self.textbox.config(background="light green") # change the background color of the output box
-                self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
+                # self.textbox.see("end")
+                # self.textbox.config(background="light green") # change the background color of the output box
+                # self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
                 dollars = functions.compute_price_completion(tokens, model)
                 self.update_token_usage(tokens, dollars) #update the token usage
                 # save the question and answer in self.question_and_answer to used in next prompt as reference
@@ -710,6 +762,10 @@ class Application(tk.Frame):
             #     #print(COLOR_LIST[k%len(COLOR_LIST)])
             #     self.phraseinTex.highlight_pattern(keyword, tag=COLOR_LIST[k%len(COLOR_LIST)])
             self.phraseinTex.config(state=tk.DISABLED)
+
+            # # TODO:try render the textbox containg latex formulas
+            
+
         else:
             self.textbox.insert(tk.END, '\n No phrases found in Tex at the level of standard deviation selected! Try lower the standard deviation or check the box "At least one phrase per paper".')
         self.textbox.config(state=tk.DISABLED)
