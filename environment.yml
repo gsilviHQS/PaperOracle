@@ -26,6 +26,7 @@ dependencies:
   - wheel=0.37.1=pyhd8ed1ab_0
   - xz=5.2.6=h166bdaf_0
   - pip:
+    - altgraph==0.17.2
     - beautifulsoup4==4.11.1
     - bs4==0.0.1
     - certifi==2022.6.15
@@ -45,6 +46,8 @@ dependencies:
     - pandas-stubs==1.4.3.220829
     - pillow==9.2.0
     - plotly==5.10.0
+    - pyinstaller==5.3
+    - pyinstaller-hooks-contrib==2022.10
     - pyparsing==3.0.9
     - python-dateutil==2.8.2
     - pyyaml==6.0
