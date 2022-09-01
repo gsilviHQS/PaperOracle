@@ -81,29 +81,29 @@ def getPaper(paper_url):
 
 ####################### TEXT-related functions ##############################
 
-import magic
-import binascii
-import base64
+# import magic
+# import base64
 
 def extract_all_text(texfiles):
     """ Extract all the text from the tex file """
     text = ''
     for texfile in texfiles:
         blob = open(texfile, 'rb').read()
-        m = magic.Magic(mime_encoding=True)
-        encoding = m.from_buffer(blob)
-        print(encoding)
+        # m = magic.Magic(mime_encoding=True)
+        # encoding = m.from_buffer(blob)
+        # print(encoding)
             
 
         with open(texfile, 'rb') as f:           
             data = f.readlines()
         
-            if encoding == 'binary':
-                for line in data:
-                    print(line)
-                    print(base64.decodebytes(line).decode('utf-8'))
+            # if encoding == 'binary':
+                # for line in data:
+                    # print(line)
+                    # print(base64.decodebytes(line).decode('utf-8'))
         for line in data:
-            text += line.decode(encoding) 
+            # text += line.decode(encoding)
+            text += line.decode('utf-8') 
     return text
 
 def find_next(string, pos, list_of_substrings):
@@ -309,13 +309,13 @@ def link_patter_finder(cit, text):
 
 def compute_price_completion(tokens, model):
     if model == 'text-davinci-002': #if the model is davinci
-        dollars = tokens * (0.06/1000)
+        dollars = tokens * (0.02/1000)
     elif model == 'text-curie-006': #if the model is curie
-        dollars = tokens * (0.006/1000)
+        dollars = tokens * (0.002/1000)
     elif model == 'text-babbage-001': #if the model is babbage
-        dollars = tokens * (0.0012/1000)
+        dollars = tokens * (0.0005/1000)
     elif model =='text-ada-001': #if the model is ada
-        dollars = tokens * (0.0008/1000)
+        dollars = tokens * (0.0004/1000)
     else:
         dollars = 0
     return dollars

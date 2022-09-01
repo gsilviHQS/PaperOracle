@@ -195,13 +195,13 @@ def combine_similar_phrases(df):
 
 def compute_price_search_doc_embedding(tokens, embedding_model):
     if embedding_model == 'text-search-davinci-doc-001': #if the model is davinci
-        dollars = tokens * (0.6/1000)
+        dollars = tokens * (0.2/1000)
     elif embedding_model == 'text-search-curie-doc-001': #if the model is curie
-        dollars = tokens * (0.06/1000)
+        dollars = tokens * (0.02/1000)
     elif embedding_model == 'text-search-babbage-doc-001': #if the model is babbage
-        dollars = tokens * (0.012/1000)
+        dollars = tokens * (0.005/1000)
     elif embedding_model =='text-search-ada-doc-001': #if the model is ada
-        dollars = tokens * (0.008/1000)
+        dollars = tokens * (0.004/1000)
     else:
         dollars = 0
     return dollars
@@ -215,13 +215,13 @@ def compute_price_search_query_embedding(question, embedding_model):
     tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
     tokens = len(tokenizer.encode(question))
     if embedding_model == 'text-search-davinci-query-001': #if the model is davinci
-        dollars = tokens * (0.6/1000)
+        dollars = tokens * (0.2/1000)
     elif embedding_model == 'text-search-curie-query-001': #if the model is curie
-        dollars = tokens * (0.06/1000)
+        dollars = tokens * (0.02/1000)
     elif embedding_model == 'text-search-babbage-query-001': #if the model is babbage
-        dollars = tokens * (0.012/1000)
+        dollars = tokens * (0.005/1000)
     elif embedding_model =='text-search-ada-query-001': #if the model is ada
-        dollars = tokens * (0.008/1000)
+        dollars = tokens * (0.004/1000)
     else:
         dollars = 0
     return embedding_question,tokens,dollars

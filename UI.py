@@ -7,6 +7,7 @@ import sklearn.utils._heap
 import sklearn.utils._sorting
 import sklearn.utils._vector_sentinel
 import sklearn.neighbors._partition_nodes
+import PIL._tkinter_finder
 import huggingface_hub.hf_api
 import huggingface_hub.repository
 #MY FUNCTIONS
