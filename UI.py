@@ -28,6 +28,9 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 rcParams['text.usetex'] = True
 
+# set the environment variable TOKENIZERS_PARALLELISM=true
+os.environ['TOKENIZERS_PARALLELISM'] = 'true' 
+
 sys.setrecursionlimit(10000)
 MAX_PHRASES_TO_USE = 10
 FOLDER_EMB = 'embeddings/'
@@ -552,7 +555,12 @@ class Application(tk.Frame):
             
         except Exception as e:
             print('Error rendering latex: ',e)
-            self.textbox.insert(tk.END, text+'\n')
+            self.textbox.insert(tk.END, text+'\n\n')
+            #  restart the rendering 
+            plt.cla()
+            plt.clf()
+            plt.close()
+
 
     def add_more_button(self):
         """
@@ -583,7 +591,8 @@ class Application(tk.Frame):
             addbutton = True
         print('answer',answer)
         self.textbox.config(state=tk.NORMAL)
-        self.render_latex(answer.strip('\n') )
+        _, latex_prob = self.compute_probability(response)
+        self.render_latex(answer.strip('\n')+latex_prob )
         # self.textbox.insert(tk.END,answer+'\n')  
         self.textbox.config(state=tk.DISABLED)
         tokens = response['usage']['total_tokens']
@@ -594,7 +603,13 @@ class Application(tk.Frame):
         
         
         if addbutton: self.add_more_button()
-
+    def compute_probability(self, response):
+        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
+        prob = np.exp(logprobs)
+        # average prob
+        prob = prob.mean()
+        print('prob',prob*100,'%')
+        return prob*100, ' ('+str("{:1.1f}".format(prob*100))+'\%)'
 
     def run(self):
         """
@@ -719,7 +734,8 @@ class Application(tk.Frame):
                         tokens += response['usage']['total_tokens']
                         model = response['model']
                         answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text']
-                        self.render_latex(answer.strip('\n'))
+                        probabilty_answer, latex_prob = self.compute_probability(response)
+                        self.render_latex(answer.strip('\n')+ latex_prob)
                         self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
                         self.master.update()
                 else:
@@ -727,7 +743,9 @@ class Application(tk.Frame):
                     tokens = response['usage']['total_tokens']
                     model = response['model']
                     answer = response['choices'][0]['text']
-                    self.render_latex(answer.strip('\n') )
+                    probabilty_answer, latex_prob = self.compute_probability(response)
+                    self.render_latex(answer.strip('\n')+ latex_prob)
+
                     # self.textbox.insert(tk.END,answer+'\n')  # insert the answer in the output box
                     self.lastpromtanswer = prompt+answer
                     self.add_more_button()

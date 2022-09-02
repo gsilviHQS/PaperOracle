@@ -320,35 +320,27 @@ def compute_price_completion(tokens, model):
         dollars = 0
     return dollars
 
-def promptText_keywords(question, api_key):
-    """ Prompt the question to gpt and return the keywords """
-    preshot = "Question 1: What is the aim of the VQE?\nKeywords from question 1: \n Keywords:VQE, aim, purpose.\n\n"
-    preshot += "Question 2: What is a local Hamiltonian? Give an example. \nKeywords from question 2: \n Keywords: local, Hamiltonian, example.\n\n"
-    preshot += "Question 2: What is a qubit? \nKeywords from question 2: \n Keywords: qubit.\n\n"
-    keywords_tag = "\nKeywords from the question 3:\n Keywords:"
-    prompt = preshot + "Question:"+ question + keywords_tag
-    #prompt = "Question 3:"+ question + keywords_tag
-    # openai.organization = 'Default'
-    openai.api_key = api_key
-    # engine_list = openai.Engine.list() # calling the engines available from the openai api
+
+def simple_prompt(prompt, api_key):
     print('INPUT:\n', prompt)
+    openai.api_key = api_key
     response = openai.Completion.create(
-        engine=SIMPLE_ENGINE,
+        engine=BEST_ENGINE,
         prompt=prompt,
         temperature=0,
-        max_tokens=340,
+        max_tokens=1000,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stop=["\n","."]
+        logprobs=1,
+        # stop=["\n"]
     )
+    
     print('\nOUTPUT:', response['choices'][0]['text'])
-    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
-
+    return response
 
 def promptText_question(question, inputtext, n_papers, api_key):
     inputtext =  '-'+'\n-'.join(inputtext)
-    openai.api_key = api_key
     question = question.strip('\n')
     if n_papers > 1:
         context = "#CONTEXT: Phrases from "+str(n_papers)+" papers#:\n"
@@ -358,37 +350,12 @@ def promptText_question(question, inputtext, n_papers, api_key):
     prompt = context+\
         inputtext +\
         "\n ##\n"+\
-        "Prompt: from the context, answer the following question: "+question+"\nIf you are not sure, say I am not sure.\n Factual answer:"
+        "Prompt: from the context, answer the following question: "+question+"\nIf you are not sure, say I am not sure.\nFactual answer:"
 
-    print('INPUT:\n', prompt)
-    response = openai.Completion.create(
-        engine=BEST_ENGINE,
-        prompt=prompt,
-        temperature=0.1,
-        max_tokens=1000,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        logprobs=1,
-        # stop=["\n"]
-    )
-    print('\nOUTPUT:', response['choices'][0]['text'])
+    response = simple_prompt(prompt, api_key)    
     return response, prompt
 
-def simple_prompt(prompt, api_key):
-    openai.api_key = api_key
-    response = openai.Completion.create(
-        engine=BEST_ENGINE,
-        prompt=prompt,
-        temperature=0.1,
-        max_tokens=1000,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        logprobs=1,
-        # stop=["\n"]
-    )
-    return response
+
 
 # def promptText_question2(question, inputtext, header, api_key):
 
@@ -468,3 +435,28 @@ def promptcleanLatex(phrases, api_key):
             phrase = response['choices'][0]['text']
         clean_phrases.append(phrase)
     return clean_phrases, response['usage']['total_tokens']
+
+def promptText_keywords(question, api_key):
+    """ Prompt the question to gpt and return the keywords """
+    preshot = "Question 1: What is the aim of the VQE?\nKeywords from question 1: \n Keywords:VQE, aim, purpose.\n\n"
+    preshot += "Question 2: What is a local Hamiltonian? Give an example. \nKeywords from question 2: \n Keywords: local, Hamiltonian, example.\n\n"
+    preshot += "Question 2: What is a qubit? \nKeywords from question 2: \n Keywords: qubit.\n\n"
+    keywords_tag = "\nKeywords from the question 3:\n Keywords:"
+    prompt = preshot + "Question:"+ question + keywords_tag
+    #prompt = "Question 3:"+ question + keywords_tag
+    # openai.organization = 'Default'
+    openai.api_key = api_key
+    # engine_list = openai.Engine.list() # calling the engines available from the openai api
+    print('INPUT:\n', prompt)
+    response = openai.Completion.create(
+        engine=SIMPLE_ENGINE,
+        prompt=prompt,
+        temperature=0,
+        max_tokens=340,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stop=["\n","."]
+    )
+    print('\nOUTPUT:', response['choices'][0]['text'])
+    return response['choices'][0]['text'], response['usage']['total_tokens'], response['model']
