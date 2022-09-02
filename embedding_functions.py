@@ -38,8 +38,11 @@ def texStripper(complete_text, title, abstract):
             return complete_text[l+1]+' '+extract_begin_to_end(complete_text,l+1,endkeyword)
 
     def loop_over(segments, opening, closing):
+        # print(segments)
         if closing in segments[0]:
             return segments[0].split(closing)[0]
+        elif closing in segments[1]:
+            return segments[0] + opening+segments[1]
         else:
             return segments[0] +opening+ segments[1] + loop_over(segments[2:],opening, closing)
 
@@ -270,7 +273,13 @@ def connect_adjacents_phrases(df):
             index_here = list_of_indeces[i]
             index_before = list_of_indeces[i-1]
         if index_here == index_before+1:
-            df.loc[index_here, "Phrase"] = df.loc[index_before].Phrase + '. ' + df.loc[index_here].Phrase
+            print('Indexes are adjacent',index_here,index_before)
+            this_phrase = df.loc[index_here].Phrase
+            previous_phrase = df.loc[index_before].Phrase
+            # check if this phrase contains ']'
+            if ']' in this_phrase:
+                this_phrase = df.loc[index_here].Phrase.split(']',1)[1] # remove repetion of [section title]
+            df.loc[index_here, "Phrase"] = previous_phrase + '. ' + this_phrase
             # update here with query_doc_similarities from index_before
             df.loc[index_here, "query_doc_similarities"] = (df.loc[index_before].query_doc_similarities + df.loc[index_here].query_doc_similarities)/2
             df.loc[index_before, 'Phrase'] = ''

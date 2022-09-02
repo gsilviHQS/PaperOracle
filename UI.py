@@ -585,13 +585,15 @@ class Application(tk.Frame):
         answer = response['choices'][0]['text']
         if answer.strip() == '':
             answer = '*No answer. Start a new question*'
+            latex_prob = ''
             addbutton = False
         else:
             self.save_to_history(self.lastpromtanswer, answer)
+            _, latex_prob = self.compute_probability(response)
             addbutton = True
         print('answer',answer)
         self.textbox.config(state=tk.NORMAL)
-        _, latex_prob = self.compute_probability(response)
+        
         self.render_latex(answer.strip('\n')+latex_prob )
         # self.textbox.insert(tk.END,answer+'\n')  
         self.textbox.config(state=tk.DISABLED)
@@ -733,10 +735,11 @@ class Application(tk.Frame):
                         response, prompt = functions.promptText_question(question, list_of_phrases,1, api_key) #ask GPT-3 to give the answer
                         tokens += response['usage']['total_tokens']
                         model = response['model']
-                        answer = 'From paper:'+self.all_info[p]+'\n'+response['choices'][0]['text']
+                        answer = response['choices'][0]['text']
                         probabilty_answer, latex_prob = self.compute_probability(response)
+                        self.render_latex('From paper:'+self.all_info[p])
                         self.render_latex(answer.strip('\n')+ latex_prob)
-                        self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
+                        # self.textbox.insert(tk.END,answer+'\n\n')  # insert the answer in the output box
                         self.master.update()
                 else:
                     response, prompt = functions.promptText_question(question, list_of_phrases,number_of_papers_used, api_key) #ask GPT-3 to give the answer
@@ -764,7 +767,7 @@ class Application(tk.Frame):
                 self.number_of_prompts += 1
 
             except Exception as e:
-                self.textbox.insert(tk.END, 'Error: ' + str(e))
+                self.textbox.insert(tk.END, 'Error: ' + str(e)+"\n\n")
                 self.textbox.config(background="red") # change the background color of the output box
                 self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
             
