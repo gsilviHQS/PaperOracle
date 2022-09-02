@@ -45,10 +45,14 @@ class Application(tk.Frame):
         self.dfs = [] #list of dataframes
         self.last_embeddings = []
         self.number_of_prompts = 0
+        self.groups = {}
+        self.img = []
         self.init_folders()
         self.create_widgets()
         self.init_defaults()
-        self.img = []
+        self.check_embedding_in_folder() #check if there are embeddings in the folder
+        
+        
                                    
 
     def create_widgets(self):
@@ -99,7 +103,7 @@ class Application(tk.Frame):
         self.vsb.config(command=self.textembedding.yview)
         self.textembedding.grid(row=6, column=0, rowspan=2)
         self.textembedding['yscrollcommand'] = self.vsb.set
-        self.check_embedding_in_folder() #check if there are embeddings in the folder
+        
 
  
 
@@ -108,7 +112,7 @@ class Application(tk.Frame):
         # self.sections.grid(row=6, column=0, rowspan=3)
         # self.sections.bind('<Button-3>', RightClicker)
         
-        tk.Label(self.master, textvariable = self.token_label).grid(row=9, column=0 , sticky=tk.W)
+        tk.Label(self.master, textvariable = self.token_label).grid(row=10, column=0 , sticky=tk.W)
         
         #Column 1 widgets
 
@@ -187,7 +191,9 @@ class Application(tk.Frame):
         #button under url box named "Get paper"
         tk.Button(self.master, text='Get paper and create embedding', command=self.pre_confirm_paper).grid(row=4, column=0)
 
-        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=10, column=0, sticky=tk.W)                     
+
+        tk.Button(self.master, text='Group papers', command=self.group_papers).grid(row=10, column=0, sticky=tk.E)    
+        tk.Button(self.master, text='Reset usage', command=self.reset_token_usage).grid(row=11, column=0, sticky=tk.W)                     
 
         tk.Button(self.master, text='Run', command=self.run).grid(row=11,
                                                                   column=1,
@@ -198,14 +204,70 @@ class Application(tk.Frame):
                                                                     pady=4,
                                                                     sticky=tk.W)
         
+    def group_papers(self):
+        self.checked_list = self.get_checked_embedding()
+        #TODO: finish this function
+        # make a new popup window to group papers
+
+        if len(self.checked_list ) == 0:
+            return
+        else:
+            self.grouppapers = tk.Toplevel(self.master)
+            self.grouppapers.geometry('400x200')
+            # insert the title of the paper
+            self.grouppapers.title('Group papers')
+            # insert the abstract of the paper
+            self.group_list = tk.Text(self.grouppapers, height=10, width=80)
+            self.group_list.pack()
+            # list the papers in group_list text, loop over the embedding_to_use
+            for i in range(len(self.checked_list)):
+                self.group_list.insert(tk.END, self.checked_list [i])
+                self.group_list.insert(tk.END, '\n')
+            # add a second textbox for the group name
+            self.group_name = tk.Text(self.grouppapers, height=1, width=80)
+            self.group_name.pack()
+            # add a button to confirm the group
+            tk.Button(self.grouppapers, text='Confirm', command=self.confirm_group).pack()
+            # add a button to cancel the group
+            tk.Button(self.grouppapers, text='Cancel', command=self.cancel_group).pack()
         
+            
+    def confirm_group(self):
+        # get the group name from the textbox
+        group_name = self.group_name.get('1.0', tk.END).strip('\n')
+        # get the papers from the textbox
+        # add the group to the groups list
+        self.groups[group_name]= self.checked_list
+
+        #  save the groups to a file
+        with open('groups.svg', 'w') as f:
+            f.write(json.dumps(self.groups))
+
+        # close the group window
+        self.grouppapers.destroy()
+        self.check_embedding_in_folder()
+        
+        print(self.groups)
+
+    def cancel_group(self):
+        # close the group window
+        self.grouppapers.destroy()
+
+
+    
     def init_defaults(self):
         if os.path.isfile('default_url.csv'):
             with open('default_url.csv', 'r') as f:
                 self.url.insert(tk.END, f.read())
+
         if os.path.isfile('default_question.csv'):
             with open('default_question.csv', 'r') as f:
                 self.question.insert(tk.END, f.read())
+
+        if os.path.isfile('groups.svg'):
+            with open('groups.svg', 'r') as f:
+                self.groups = json.loads(f.read())
+
 
 
     def init_folders(self):
@@ -230,34 +292,16 @@ class Application(tk.Frame):
 
     # def check_papers_in_folder(self):
     #     self.folders = list(os.listdir('papers/'))
-    
-    def check_embedding_in_folder(self):
-        """
-        Check if there are embeddings in the folder, and defaults used last time
-        If so, then set the checkbox, already checked according to the default embeddings
-        Create a list of checkboxes for the embeddings in the folder
-        """
-        self.checkbuttons = []
-        # clear self.textembedding
-        self.textembedding.delete(1.0, tk.END)
-        self.embeddings = list(os.listdir(FOLDER_EMB))
-        def_emb = []
-        if os.path.isfile('default_embeddings.csv'):
-            with open('default_embeddings.csv', 'r') as f:
-                # read all the lines in the file
-                def_emb = f.readlines()
-                # remove the newline character at the end of each line
-                def_emb = [x.strip() for x in def_emb]
-                print('default embeddings: ', def_emb)
 
+    def list_embeddings(self):
+        self.checkbuttons = []
         type_of_embedding = ['text-search-ada-doc-001.csv','text-search-babbage-doc-001.csv','text-search-curie-doc-001.csv']
+        self.embeddings = list(os.listdir(FOLDER_EMB))
         if len(self.embeddings) > 0:
-            for model in type_of_embedding:
+            for model in type_of_embedding: # divide by model
                 only_model = model.replace('.csv','')
-                # add a voice to text embedding with the model
-                self.textembedding.insert(tk.END,'MODEL:'+only_model+'\n')
-                for emb in self.embeddings:
-                    #embeddings in folder
+                for emb in self.embeddings: #loop over complete list of embeddings
+                    #embeddings in  each folder
                     emb_in_folder = list(os.listdir(FOLDER_EMB+emb))
                     # keep only .csv files
                     emb_in_folder = [x for x in emb_in_folder if x.endswith('.csv')]
@@ -270,18 +314,59 @@ class Application(tk.Frame):
                         info = json.load(f)
                     j = tk.IntVar()
                     cb = WrappingCheckbutton(self.master, text=info, variable=j)
-                    if emb+only_model in def_emb:
+                    if emb+only_model in self.default_emb:
                         j.set(1)
                         #set the background color of the checkbox to green
                         cb.config(bg='light green')
-                    
-                    
-                    # add cb to a list of checkbuttons
                     self.checkbuttons.append((j,emb,cb,only_model))
+    
+    def check_embedding_in_folder(self):
+        """
+        Check if there are embeddings in the folder, and defaults used last time
+        If so, then set the checkbox, already checked according to the default embeddings
+        Create a list of checkboxes for the embeddings in the folder
+        """
+        
+        # clear self.textembedding
+        self.textembedding.delete(1.0, tk.END)
+        self.default_emb = []
+        if os.path.isfile('default_embeddings.csv'):
+            with open('default_embeddings.csv', 'r') as f:
+                # read all the lines in the file
+                def_emb = f.readlines()
+                # remove the newline character at the end of each line
+                self.default_emb = [x.strip() for x in def_emb]
+                print('default embeddings: ', def_emb)
+        
+        self.list_embeddings() #populate the checkbuttons list
+
+                #list the self.groups if there are any
+        buttons_already_used = []
+        if len(self.groups)>0:
+            self.textembedding.insert(tk.END, 'Groups: \n')
+            for key in self.groups.keys():
+                self.textembedding.insert(tk.END, key)
+                self.textembedding.insert(tk.END, '\n')
+                # list the values of the groups
+                for id,mod in self.groups[key]:
+                    print(id,mod, key)
+                    for j,emb,cb,model in self.checkbuttons:
+                        if id == emb and mod == model:
+                            print('found')
+                            self.textembedding.window_create("end", window=cb)
+                            self.textembedding.insert("end", '\n') 
+                            # remove the checkbox from the list of checkbuttons
+                            buttons_already_used.append(cb)
+                            break
+
+        for general_models in ['text-search-ada-doc-001','text-search-babbage-doc-001','text-search-curie-doc-001']:
+            self.textembedding.insert(tk.END,'\nMODEL:'+general_models+'\n')
+            for j,emb,cb,model in self.checkbuttons:
+                if cb in buttons_already_used:
+                    continue
+                if model == general_models:
                     self.textembedding.window_create("end", window=cb)
                     self.textembedding.insert("end", "\n") # to force one checkbox per line
-
-                # check if the checkbox is checked
 
     def reset_token_usage(self):
         """"
@@ -640,7 +725,7 @@ class Application(tk.Frame):
         # check if the embeddings used have changed and update the embedding if necessary
         embedding_to_use = self.get_checked_embedding()
         if len(embedding_to_use) == 0:
-            self.textbox.insert(tk.END, '\n Attention! You need to select papers to use.')
+            self.textbox.insert(tk.END, '\n Attention! You need to select papers to use.\n')
             return
         self.master.update()
 
