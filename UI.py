@@ -843,9 +843,9 @@ class Application(tk.Frame):
                     # self.textbox.insert(tk.END,'\n')
 
                 
-                # self.textbox.see("end")
-                # self.textbox.config(background="light green") # change the background color of the output box
-                # self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
+                self.textbox.see("end")
+                self.textbox.config(background="light green") # change the background color of the output box
+                self.textbox.after(400, lambda: self.textbox.config(background="white")) # reset the background color after 200ms
                 dollars = functions.compute_price_completion(tokens, model)
                 self.update_token_usage(tokens, dollars) #update the token usage
                 # save the question and answer in self.question_and_answer to used in next prompt as reference
