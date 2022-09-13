@@ -27,6 +27,9 @@ import io
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 rcParams['text.usetex'] = True
+rcParams['text.latex.preamble'] = r'\usepackage{amsfonts} \usepackage{amssymb} \usepackage{amsmath}'
+
+
 
 # set the environment variable TOKENIZERS_PARALLELISM=true
 os.environ['TOKENIZERS_PARALLELISM'] = 'true' 
@@ -97,7 +100,7 @@ class Application(tk.Frame):
         tk.Label(self.master, textvariable=self.papertitle, wraplength=400).grid(row=5, column=0)
         
         
-        self.textembedding = tk.Text(self.master, width=50, height=40, wrap=tk.WORD)
+        self.textembedding = tk.Text(self.master, width=60, height=40, wrap=tk.WORD)
         self.vsb = tk.Scrollbar(self.master, orient="vertical")
         self.vsb.grid(row=6, column=0, sticky='nse')
         self.vsb.config(command=self.textembedding.yview)
@@ -609,7 +612,7 @@ class Application(tk.Frame):
         # render the latex text to an image
         try:
             # add \begin{minipage} and \end{minipage} to the text
-            latextext = r'\begin{minipage}{13cm}'+text+r'\end{minipage}'
+            latextext = r'\begin{minipage}{13cm}'+r"{}".format(text)+r'\end{minipage}'
             print('Converting to latex...',latextext)
             # new plot
             # fig = plt.figure(figsize=(12, 6))
@@ -882,7 +885,7 @@ class Application(tk.Frame):
 
 root = tk.Tk()
 root.title("ArXiv Paper Oracle: Q&A Tool with OpenAI GPT-3")
-root.geometry("2000x800")
+root.geometry("1400x800")
 root.columnconfigure(4) 
 root.configure(background="darkgray")
 root.bind_class("Entry", "<<Paste>>", custom_paste)
