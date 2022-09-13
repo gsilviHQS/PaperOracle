@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import tkinter as tk
+from tkinter import ttk
 import os
 
 import sklearn.utils._typedefs
@@ -30,6 +31,8 @@ rcParams['text.usetex'] = True
 rcParams['text.latex.preamble'] = r'\usepackage{amsfonts} \usepackage{amssymb} \usepackage{amsmath}'
 
 
+
+#TODO: pdflatex -synctex=1 yourFile.tex use synctex to generate correspondence between tex file and position in pdf.
 
 # set the environment variable TOKENIZERS_PARALLELISM=true
 os.environ['TOKENIZERS_PARALLELISM'] = 'true' 
@@ -207,6 +210,18 @@ class Application(tk.Frame):
                                                                     pady=4,
                                                                     sticky=tk.W)
         
+                # progressbar
+        
+        self.pb = ttk.Progressbar(
+            root,
+            orient='horizontal',
+            mode='determinate',
+            length=280
+        )
+        # place the progressbar
+        self.pb.grid(column=1, row=12, columnspan=2, padx=10, pady=20)
+
+
     def group_papers(self):
         self.checked_list = self.get_checked_embedding()
         #TODO: finish this function
@@ -701,10 +716,20 @@ class Application(tk.Frame):
         print('prob',prob*100,'%')
         return prob*100, ' ('+str("{:1.1f}".format(prob*100))+'\%)'
 
+    def progress(self):
+        if self.pb['value'] < 100:
+            self.pb['value'] += 20
+        self.master.update()
+
+
+
+
     def run(self):
         """
         Run the program
         """
+        
+
         list_of_phrases = []
         list_of_list_of_phrases = []
         list_of_phrases_with_similarity = []
@@ -724,18 +749,23 @@ class Application(tk.Frame):
         
         if self.button4more is not None:
             self.button4more.destroy()
+
+        self.progress() #1
         
         # check if the embeddings used have changed and update the embedding if necessary
         embedding_to_use = self.get_checked_embedding()
         if len(embedding_to_use) == 0:
             self.textbox.insert(tk.END, '\n Attention! You need to select papers to use.\n')
             return
-        self.master.update()
+        
+
 
         if self.last_embeddings != embedding_to_use:
             self.get_embedding(embedding_to_use)
             self.last_embeddings = embedding_to_use
-            
+        
+        
+        self.progress() #2
         # set the textbox ready for input
         self.phraseinTex.config(state=tk.NORMAL)
         self.phraseinTex.delete('1.0', tk.END)  # clear the output box
@@ -753,6 +783,9 @@ class Application(tk.Frame):
         for engine_search_query in models:
             embedding_question[engine_search_query], tokens, dollars = embedding_functions.compute_price_search_query_embedding(question,engine_search_query.replace('doc','query'))
             self.update_token_usage(tokens, dollars) # update the token usage
+        
+        
+        self.progress() #3
 
         # loop over all dataframes/embeddings and find the phrases that are similar to the question
         i=0
@@ -766,7 +799,7 @@ class Application(tk.Frame):
             std += df.query_doc_similarities.std()**2
         mean = mean/len(self.dfs)
         std = np.sqrt(std/len(self.dfs))
-
+        
 
         for df,model in self.dfs:
             # print first phrase in df
@@ -810,7 +843,7 @@ class Application(tk.Frame):
             i+=1
             # if len(list_of_phrases) > MAX_PHRASES_TO_USE+(i+1) and :
             #     break
-
+        self.progress() # 4
         if len(list_of_phrases) > 0: #if there are phrases!
             tokens = 0
             # MOST IMPORTANT STEP, ASK GPT-3 TO GIVE THE ANSWER
@@ -879,6 +912,8 @@ class Application(tk.Frame):
         else:
             self.textbox.insert(tk.END, '\n No phrases found in Tex at the level of standard deviation selected! Try lower the standard deviation or check the box "At least one phrase per paper".')
         self.textbox.config(state=tk.DISABLED)
+        self.progress() # 5
+        self.pb.stop()
 
 
 
