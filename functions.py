@@ -86,25 +86,35 @@ def getPaper(paper_url):
 
 def extract_all_text(texfiles):
     """ Extract all the text from the tex file """
+    #check if texfiles is a list or a string
+    if isinstance(texfiles, str):
+        texfiles = [texfiles]
+
     text = ''
     for texfile in texfiles:
-        blob = open(texfile, 'rb').read()
-        # m = magic.Magic(mime_encoding=True)
-        # encoding = m.from_buffer(blob)
-        # print(encoding)
-            
-
         with open(texfile, 'rb') as f:           
             data = f.readlines()
-        
-            # if encoding == 'binary':
-                # for line in data:
-                    # print(line)
-                    # print(base64.decodebytes(line).decode('utf-8'))
         for line in data:
             # text += line.decode(encoding)
-            text += line.decode('utf-8') 
+            text += line.decode('utf-8')
     return text
+
+def extract_all_text2(texfiles):
+    """ Extract all the text from the tex file """
+    #check if texfiles is a list or a string
+    if isinstance(texfiles, str):
+        texfiles = [texfiles]
+
+    all_files_text = []
+    for texfile in texfiles:
+        text = []
+        with open(texfile, 'rb') as f:           
+            data = f.readlines()
+        for line in data:
+            # text += line.decode(encoding)
+            text.append(line.decode('utf-8'))
+        all_files_text.append((texfile,text))
+    return all_files_text
 
 def find_next(string, pos, list_of_substrings):
     """ Find the (min) next position of a list of substring in a string """

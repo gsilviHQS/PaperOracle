@@ -161,7 +161,165 @@ def texStripper(complete_text, title, abstract):
     return final_text
 
 
+def content_in_pharentesis(first_division,complete_text,l):
+            second_division = first_division.split('}')
+            if len(second_division)==1:
+                return second_division[0] + content_in_pharentesis(complete_text[l+1],complete_text,l+1)
+            else:
+                return second_division[0]
 
+def extract_begin_to_end(complete_text,l, endkeyword):
+    #add lines from complete_text, starting from l+1 until you find a line starting with \end{
+    
+    # in case of begin and end in the same line
+    if type(endkeyword) == str: 
+        if endkeyword in complete_text[l]:
+            return complete_text[l]
+
+
+    if complete_text[l+1].startswith(endkeyword): #if the next line starts with the endkeyword
+        return ''
+    elif complete_text[l+1].startswith('%'): #if the next line starts with a comment
+        return '\n'+extract_begin_to_end(complete_text,l+1,endkeyword)
+    else:                                  #if the next line does not start with the endkeyword  or comment, add it to the text   
+        return complete_text[l+1]+extract_begin_to_end(complete_text,l+1,endkeyword)
+
+def loop_over(segments, opening, closing):
+    # print(segments)
+    if closing in segments[0]:
+        return segments[0].split(closing)[0]
+    elif closing in segments[1]:
+        return segments[0] + opening+segments[1]
+    else:
+        return segments[0] +opening+ segments[1] + loop_over(segments[2:],opening, closing)
+
+def texStripper2(complete_text, title, abstract):
+    all_files_final_text = {}
+    for files in complete_text:
+        filename, complete_text2 = files
+        possible_keywords = ["\\title","\\author", "\\email", "\\thanks","\\affiliation","\\date","\\input"]
+        # add keywords with \t in front
+        possible_keywords = possible_keywords + [r"\t{}".format(k) for k in possible_keywords]
+
+        text_sections = {}
+        text_sections['-'] = tuple(('',1000))
+        text_keys = {}
+        # text_keys['plain text'] = []
+
+        in_document = False
+        in_section = False
+
+        for l,line in enumerate(complete_text2): #loop over lines
+            line_number = l+1
+                
+            if line.startswith(tuple(possible_keywords)):
+                    first_division = line.split('{')
+                    keyword = first_division[0].replace('\\','')
+                    content = content_in_pharentesis(first_division[1],complete_text2,l)
+                    if keyword not in text_keys.keys():
+                        text_keys[keyword] = [(content,line_number)]
+                    else:
+                        text_keys[keyword].append((content,line_number))
+            
+            elif line.startswith("\\begin{document"):
+                in_document = True
+                continue 
+
+            elif line.startswith("\\end{document"):
+                in_document = False
+                in_section = False
+                continue
+        
+            elif line.startswith("\\begin{") and in_document:
+                first_division = line.split('{')
+                second_division = first_division[1].split('}')
+                keyword = second_division[0]
+                
+                content = extract_begin_to_end(complete_text2,l,'\\end{'+keyword)
+                if keyword not in text_keys.keys():
+                    text_keys[keyword] = [(content,line_number)]
+                else:
+                    text_keys[keyword].append((content,line_number))
+            #print(r"{}".format(line))
+            if line.startswith(("\\section","\\subsection","\t\\section","\t\\subsection","\\paragraph","\t\\paragraph")):
+                in_section = True
+                line = re.sub(r"\\label{(.*?)}", "", line)
+                # print(line)
+                if '}' not in line:
+                    #append the next line to the current line
+                    line = line + complete_text2[l+1]
+                first_division = line.split('{')
+                keyword = loop_over(segments=first_division[1:], opening='{', closing= '}' )
+                keyword = r"{}".format(keyword)
+                #get all the lines until the next \section or \subsection
+                content = extract_begin_to_end(complete_text2,l,("\\section","\\subsection","\t\\section","\t\\subsection","\\paragraph","\t\\paragraph","\\begin{thebibliography}","\\end{document}"))
+                text_sections[keyword] = (content,line_number+1)
+                
+
+            if in_document and not line.startswith(("\\","\t","%"," "*2," "*3," "*4," "*5)):
+                if line != '':
+                    # text_keys['plain text'].append(line) #may be useless
+                    if not in_section:
+                        text_sections['-'] = (text_sections['-'][0]+'\n'+line,min(line_number,text_sections['-'][1]))
+                        
+        if len(text_sections['-']) == 0:
+            del text_sections['-']
+
+        if 'title' not in text_keys.keys() and title is not None:
+            text_keys['title'] = [title]
+        if 'abstract' not in text_keys.keys()and abstract is not None:
+            text_keys['abstract'] = [abstract]
+
+        print('KEYS:',text_keys.keys())
+        print('SECTIONS:',text_sections.keys())
+
+        final_text = {}
+        temp_list_phrases =[]
+        final_text['sections'] = list(text_sections.keys())
+        final_text['full'] = []
+        final_text['tokens'] = 0
+        # append general info
+        
+        for key in text_keys.keys():
+            if key in ['title','abstract','author','email','thanks','affiliation','date']: #TODO include 'equation' 'theorem','proof','lemma'
+                #append on top of the list,code: temp_list_phrases.insert(0,text_keys[key][0])
+                print(key,text_keys[key])
+                for text in text_keys[key]:
+                    temp_list_phrases.append(("[["+key+"]] "+text[0].replace('\n',''),text[1],text[1]))
+        
+        # append sections
+    
+        for sec in text_sections.keys():
+                print(sec)
+                start_line = text_sections[sec][1]
+                
+                for upphrase in text_sections[sec][0].split('.\n'): #split on .\n
+                    end_line = start_line
+                    for phrase in upphrase.split('. '): #split on .
+                        if phrase !='':
+                            end_line = end_line + phrase.count('\n')
+                            temp_list_phrases.append(("[["+sec+"]]"+phrase.replace('\n',''),start_line,end_line))
+                            start_line = end_line
+                    start_line = start_line + 1
+        #looop over temp_list_phrases and check length of each phrase
+        tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
+
+        for phrase in temp_list_phrases:
+            tokens = len(tokenizer.encode(phrase[0]))
+            if tokens>2000:
+                phrase_split = phrase[0].split('.')
+                print('Phrase too long:',len(phrase[0]),' trying to split it into',len(phrase_split),'phrases')
+                if len(phrase_split)>1:
+                    for p in phrase_split:
+                        if p !='':
+                            final_text['full'].append((p,phrase[1],phrase[2]))
+
+            else:
+                final_text['full'].append(phrase)
+            final_text['tokens'] += tokens
+    all_files_final_text[filename] = final_text
+
+    return all_files_final_text
 
 
 
