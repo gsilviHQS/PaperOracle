@@ -1,3 +1,4 @@
+from tracemalloc import start
 from openai.embeddings_utils import get_embedding, cosine_similarity
 from transformers import GPT2TokenizerFast
 import os
@@ -180,9 +181,9 @@ def extract_begin_to_end(complete_text,l, endkeyword):
     if complete_text[l+1].startswith(endkeyword): #if the next line starts with the endkeyword
         return ''
     elif complete_text[l+1].startswith('%'): #if the next line starts with a comment
-        return '\n'+extract_begin_to_end(complete_text,l+1,endkeyword)
+        return '\n '+extract_begin_to_end(complete_text,l+1,endkeyword)
     else:                                  #if the next line does not start with the endkeyword  or comment, add it to the text   
-        return complete_text[l+1]+extract_begin_to_end(complete_text,l+1,endkeyword)
+        return complete_text[l+1]+' '+extract_begin_to_end(complete_text,l+1,endkeyword)
 
 def loop_over(segments, opening, closing):
     # print(segments)
@@ -197,12 +198,12 @@ def texStripper2(complete_text, title, abstract):
     all_files_final_text = {}
     for files in complete_text:
         filename, complete_text2 = files
-        possible_keywords = ["\\title","\\author", "\\email", "\\thanks","\\affiliation","\\date","\\input"]
+        possible_keywords = ["\\title","\\author","\\affiliation","\\date","\\input"]
         # add keywords with \t in front
         possible_keywords = possible_keywords + [r"\t{}".format(k) for k in possible_keywords]
 
         text_sections = {}
-        text_sections['-'] = tuple(('',1000))
+        text_sections['-'] = tuple(('',[]))
         text_keys = {}
         # text_keys['plain text'] = []
 
@@ -213,9 +214,10 @@ def texStripper2(complete_text, title, abstract):
             line_number = l+1
                 
             if line.startswith(tuple(possible_keywords)):
-                    first_division = line.split('{')
+                    first_division = line.split('{',1)
                     keyword = first_division[0].replace('\\','')
-                    content = content_in_pharentesis(first_division[1],complete_text2,l)
+                    # content = content_in_pharentesis(first_division[1],complete_text2,l)
+                    content = first_division[1].replace('}','')
                     if keyword not in text_keys.keys():
                         text_keys[keyword] = [(content,line_number)]
                     else:
@@ -256,19 +258,20 @@ def texStripper2(complete_text, title, abstract):
                 text_sections[keyword] = (content,line_number+1)
                 
 
-            if in_document and not line.startswith(("\\","\t","%"," "*2," "*3," "*4," "*5)):
+            if in_document and not line.startswith(("\\","\t","%", " ")):
                 if line != '':
                     # text_keys['plain text'].append(line) #may be useless
                     if not in_section:
-                        text_sections['-'] = (text_sections['-'][0]+'\n'+line,min(line_number,text_sections['-'][1]))
+                        text_sections['-'][1].append(line_number)
+                        text_sections['-'] = (text_sections['-'][0]+line, text_sections['-'][1])
                         
-        if len(text_sections['-']) == 0:
+        if len(text_sections['-'][0]) == 0:
             del text_sections['-']
 
-        if 'title' not in text_keys.keys() and title is not None:
-            text_keys['title'] = [title]
-        if 'abstract' not in text_keys.keys()and abstract is not None:
-            text_keys['abstract'] = [abstract]
+        # if 'title' not in text_keys.keys() and title is not None:
+        #     text_keys['title'] = [title]
+        # if 'abstract' not in text_keys.keys()and abstract is not None:
+        #     text_keys['abstract'] = [abstract]
 
         print('KEYS:',text_keys.keys())
         print('SECTIONS:',text_sections.keys())
@@ -281,37 +284,89 @@ def texStripper2(complete_text, title, abstract):
         # append general info
         
         for key in text_keys.keys():
-            if key in ['title','abstract','author','email','thanks','affiliation','date']: #TODO include 'equation' 'theorem','proof','lemma'
+            if key in ['title','abstract','author','email','thanks','affiliation']: #TODO include 'equation' 'theorem','proof','lemma'
                 #append on top of the list,code: temp_list_phrases.insert(0,text_keys[key][0])
                 print(key,text_keys[key])
+                combine_text = ''
+                combine_lines = []
                 for text in text_keys[key]:
-                    temp_list_phrases.append(("[["+key+"]] "+text[0].replace('\n',''),text[1],text[1]))
+                    combine_text = combine_text +', '+text[0].replace('\n','')
+                    combine_lines.append(text[1])
+
+                temp_list_phrases.append(("[["+key+"]] "+combine_text,combine_lines))
         
         # append sections
+
     
         for sec in text_sections.keys():
                 print(sec)
-                start_line = text_sections[sec][1]
-                
-                for upphrase in text_sections[sec][0].split('.\n'): #split on .\n
-                    end_line = start_line
-                    for phrase in upphrase.split('. '): #split on .
-                        if phrase !='':
-                            end_line = end_line + phrase.count('\n')
-                            temp_list_phrases.append(("[["+sec+"]]"+phrase.replace('\n',''),start_line,end_line))
-                            start_line = end_line
-                    start_line = start_line + 1
+                new_phrase= True
+                begin_end_env = False
+                # print(text_sections[sec])
+                lines = text_sections[sec][1]
+                if type(lines) == list:
+                    start_line = lines[0]
+                else:
+                    start_line = lines
+                content = text_sections[sec][0]
+                content = content.replace('.\n',' #END#\n')
+                for phrase in content.split('\n'): #split on .\n
+                    #for phrase in upphrase.split('. '): #split on .
+                    # combine phrases that are split by \n till meet #END#
+                    if len(phrase) >  1 :
+                        # print(temp_list_phrases)
+                        clean_phrase = phrase.replace('#END#','.')
+
+
+                        if r"\begin{" in clean_phrase and not begin_end_env:
+                            first_division = clean_phrase.split('{')
+                            second_division = first_division[1].split('}')
+                            keyword = second_division[0]
+                            begin_end_env = True
+                            end_keyword = "\\end{"+keyword+"}"
+                            if keyword in ['table','table*','figure','figure*','footnotesize']:
+                                print('KEYWORD:',end_keyword,start_line)
+                                new_phrase = True
+                        if begin_end_env: 
+                            phrase = phrase.replace('#END#','.')
+
+                        if new_phrase == True and r"\end{" not in clean_phrase:
+                            temp_list_phrases.append(("[["+sec+"]]"+clean_phrase, [start_line]))
+                            new_phrase = False
+                        else:
+                            temp_list_phrases[-1][1].append(start_line)
+                            temp_list_phrases[-1] = (temp_list_phrases[-1][0]+' '+clean_phrase, 
+                                                    temp_list_phrases[-1][1])
+                        if begin_end_env:
+                            if end_keyword in clean_phrase:
+                                begin_end_env = False
+                                if keyword in ['table','table*','figure','figure*','footnotesize']:
+                                    new_phrase = True
+                            
+                        else:
+                            if '#END#' in phrase:
+                                new_phrase = True
+                                
+                    if type(lines) == list:
+                        # get the next line
+                        if lines.index(start_line) == len(lines)-1:
+                            break
+                        start_line = lines[lines.index(start_line) + 1]
+                        
+                    else:
+                        start_line += 1
         #looop over temp_list_phrases and check length of each phrase
         tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
 
         for phrase in temp_list_phrases:
             tokens = len(tokenizer.encode(phrase[0]))
             if tokens>2000:
-                phrase_split = phrase[0].split('.')
+                phrase_split = phrase[0].split('.\n')
                 print('Phrase too long:',len(phrase[0]),' trying to split it into',len(phrase_split),'phrases')
                 if len(phrase_split)>1:
                     for p in phrase_split:
-                        if p !='':
+
+                        if p !='' and len(tokenizer.encode(p))<2000:
                             final_text['full'].append((p,phrase[1],phrase[2]))
 
             else:
