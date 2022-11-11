@@ -361,7 +361,7 @@ def texStripper2(complete_text, title, abstract):
         for phrase in temp_list_phrases:
             tokens = len(tokenizer.encode(" ".join(phrase[0])))
             if tokens>2048:
-                phrase_split = phrase[0].split('.') #DANGEROUS CHOICE HERE!!!!!
+                phrase_split = phrase[0].split('.\n') #DANGEROUS CHOICE HERE!!!!!
                 print('Phrase too long:',len(phrase[0]),' at lines:',phrase[1])
                 print('Splitting phrase in ',len(phrase_split),' parts')
                 if len(phrase_split)>1:
